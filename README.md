@@ -1,77 +1,51 @@
-# 📱 Curso de Desenvolvimento Mobile Android (Ementa 5 Meses)
+# 📱 Desenvolvimento Mobile Android
 
-Ementa enxuta e focada no que o mercado mais exige hoje para Android nativo: **Kotlin**, **arquitetura limpa (MVVM)**, **UI clássica XML + ViewBinding**, **persistência (Room / DataStore)**, **networking (Retrofit + Coroutines)**, **injeção de dependências (Hilt)**, **testes**, **boas práticas de publicação**. Jetpack Compose é citado como caminho futuro, mas não é foco (remoção para manter curva de aprendizado realista em 5 meses).
+Este documento é o guia completo para a trilha de Desenvolvimento Mobile Android. Ele detalha o currículo, as tecnologias e os projetos que transformarão você em um desenvolvedor Android capaz de criar aplicativos profissionais, desde o conceito até a publicação.
 
 ---
 
 ## 🎯 Objetivo Geral
 Formar o aluno para entregar um app Android profissional usando a stack estável mais difundida: Activities/Fragments + XML, MVVM + Repository, Room, Retrofit, Hilt, Coroutines/Flow, testes fundamentais e pipeline de release.
 
-## 🗓️ Organização Temporal
-- Duração: ~20 semanas (5 meses)
-- Ritmo sugerido: 4h a 6h de estudo/prática guiada por semana + projeto incremental
-- Entregáveis: mini‑projetos modulares evoluindo para um **App Final** (Lista + Detalhe + Cache Offline + Login Simples)
-
 ---
 
 ## 🧩 Módulos
 
-### Módulo 1 - Fundamentos Kotlin + Fundamentos Android Clássico
+### Módulo 1 - Fundamentos Kotlin e Android
+- **Kotlin Essencial**: Tipos, null safety, data classes, coleções, funções de extensão e lambdas.
+- **Estrutura de Projeto**: Gradle moderno, namespaces e build variants.
+- **Componentes Android**: Ciclo de vida de Activity/Fragment e uso de Intents.
+- **UI Clássica (XML)**: Layouts com ConstraintLayout e Material Components.
+- **Acesso a Views**: Adoção de ViewBinding em vez de `findViewById`.
 
-- Kotlin essencial: tipos, null safety, data classes, coleções, funções de extensão, lambdas
-- Estrutura de projeto Android (Gradle moderno, namespaces, build variants básicos)
-- Ciclo de vida Activity / Fragment
-- Layouts XML, ConstraintLayout, Material Components (botões, text fields, theming mínimo)
-- ViewBinding vs findViewById (adotar ViewBinding)
-- Recursos: strings, dimens, drawables, temas, estilos, cores (Material 3 em XML)
+**Entrega parcial**: Tela estática simples com navegação básica entre Fragments.
 
-Entrega parcial: Tela estática multi-Fragment navegando com BottomNavigation ou Toolbar simples.
+### Módulo 2 - Arquitetura MVVM e UI Dinâmica
+- **MVVM**: `ViewModel` + `StateFlow` (`UiState` com `sealed class`) e fluxo unidirecional de dados.
+- **Eventos One-Shot**: `SharedFlow` para navegação/toasts.
+- **Listas**: `RecyclerView` com `ListAdapter` + `DiffUtil`.
+- **Navegação**: `Navigation Component` + `Safe Args` para navegação segura e testável.
+- **Acessibilidade**: `contentDescription`, foco, labels e strings externalizadas.
 
-### Módulo 2 - UI Dinâmica + Listas + Navegação
 
-- RecyclerView: Adapter, ViewHolder, ListAdapter + DiffUtil
-- Padrões de estado de tela (Loading, Empty, Error, Content)
-- Navigation Component (gráfico, safe args, back stack)
-- Comunicação Fragment ↔ ViewModel (scoped ViewModel)
-- Imagens: Coil (ou Glide) básico
-- Acessibilidade inicial (contentDescription, touch targets)
+**Entrega parcial**: App com lista de dados locais (mock) e tela de detalhes, usando a arquitetura MVVM.
 
-Entrega parcial: Lista paginada simples (mock) + detalhe, busca local e estados de tela.
+### Módulo 3 - Persistência e Networking
+- **Coroutines Avançados**: `Dispatchers`, concorrência estruturada e cancelamento.
+- **Networking (Retrofit + OkHttp)**: `suspend functions` e tratamento de erros/timeouts.
+- **Persistência**: `Room` (Entity, DAO, migrations básicas) e `DataStore` para preferências.
+- **Repository Pattern**: Combinar fontes de dados local e remota (padrão `NetworkBoundResource` simplificado).
+- **Injeção de Dependência (Hilt)**: Injetar `Retrofit`, `DAO` e `Repository`.
 
-### Módulo 3 - Arquitetura e Dados Locais
+**Entrega parcial**: App consumindo uma API real, com cache local em Room para funcionamento offline.
 
-- MVVM + Repository + separação de camadas
-- Coroutines: launch, async, scopes, exception handling
-- Flow vs LiveData (usar Flow como primário)
-- Room: entities, DAO, migrations básicas
-- DataStore (Preferences) para configurações leves
-- Estratégias Offline First (cache + fonte remota) e mapeamento de modelos (DTO ↔ Entity ↔ UI Model)
-- Injeção de dependências com Hilt (modules, scopes)
+### Módulo 4 - Jetpack Compose, Testes e Publicação
+- **Jetpack Compose Básico**: `@Composable`, state (`remember`, state hoisting), recomposition e theming mínimo (Material 3 básico).
+- **Integração Compose ↔ ViewModel**: Conectar `StateFlow` do ViewModel ao estado do Compose.
+- **Testes Essenciais**: Testes de unidade para `ViewModel`/`UseCases` (MockK/Turbine) e 1–2 testes de UI com Compose.
+- **Publicação Mínima**: Gerar AAB assinado localmente e checklist do Play Console (trilha interna).
 
-Entrega parcial: Persistir itens da lista (Room) + filtro + preferências de usuário salvas em DataStore.
-
-### Módulo 4 - Networking e Integrações
-
-- Retrofit + OkHttp (interceptors, logging, timeouts)
-- Serialização: Moshi ou Gson (optar por Moshi)
-- Tratamento de erros (HTTP, timeout, parsing) + Result wrapper
-- Paginação manual básica (ou Paging 3 como extensão se houver tempo)
-- Autenticação simples (token bearer ou Firebase Auth opcional)
-- Upload / download de imagens (multipart) básico
-- Estratégia de sincronização (merge remoto/local)
-
-Entrega parcial: App utilizando API pública (ex: TMDB ou GitHub) com cache Room + fallback offline.
-
-### Módulo 5 - Qualidade, Release e Projeto Final
-
-- Medição de performance (Layout Inspector, Memory, Network) breve
-- Segurança básica: Proguard/R8, evitar credenciais hardcoded, Network Security Config
-- Empacotamento e assinatura (keystore), Play Console (simulado)
-- Automação inicial: GitHub Actions build + lint + testes (pipeline simples)
-
-Entrega final: App consolidado (lista + detalhe + login simples + cache offline + testes de unidade principais + pipeline CI build).
-
----
+**Entrega final**: Tela principal refatorada para Compose (pelo menos a lista), ViewModel testado, build AAB pronto e README com instruções de release.
 
 ## 🛠️ Stack de Tecnologias
 | Tecnologia | Uso Principal |
