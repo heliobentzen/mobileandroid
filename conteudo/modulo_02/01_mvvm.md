@@ -12,16 +12,9 @@ MVVM é um padrão de arquitetura que facilita a separação de responsabilidade
 
 ## Gerenciamento de Estado com `StateFlow` e `UiState`
 
-Para comunicar o estado da UI do `ViewModel` para a `View`, usamos o `StateFlow`, uma evolução do `LiveData` que faz parte das Coroutines do Kotlin. Ele é ideal para representar um estado que pode mudar ao longo do tempo.
-
-Para modelar os diferentes estados possíveis da nossa UI (carregando, sucesso, erro), usamos uma `sealed class`. Isso garante que todos os estados possíveis sejam tratados, tornando nosso código mais seguro e previsível.
-
-### `UiState` com `sealed class`
-
-Vamos definir uma classe genérica `UiState` que pode ser reutilizada em várias telas.
+Para comunicar o estado da UI do `ViewModel` para a `View`, usamos o `StateFlow`, uma evolução do `LiveData` que se integra perfeitamente com Coroutines. Para representar os diferentes estados da UI (carregando, sucesso, erro), criamos uma `sealed class` chamada `UiState`.
 
 ```kotlin
-// UiState.kt
 sealed class UiState<out T> {
     object Loading : UiState<Nothing>()
     data class Success<T>(val data: T) : UiState<T>()
@@ -35,11 +28,11 @@ sealed class UiState<out T> {
 
 ## Fluxo Unidirecional de Dados (UDF)
 
-UDF é um padrão de design onde o estado flui em apenas uma direção.
+UDF é um padrão de design onde o estado flui em apenas uma direção. Isso torna o fluxo de dados previsível e mais fácil de depurar.
 
-1.  **Estado (State)**: O `ViewModel` expõe o estado da UI (nosso `UiState`) para a `View` através de um `StateFlow`. A `View` observa esse fluxo e se atualiza sempre que o estado muda.
+1.  **Estado (State)**: O `ViewModel` mantém e atualiza o estado. Ele expõe o estado para a `View` através de um `StateFlow`. A `View` observa esse fluxo e se atualiza sempre que o estado muda.
 2.  **Eventos (Events)**: A `View` captura eventos do usuário (cliques, texto digitado) e os envia para o `ViewModel` como chamadas de função.
-3.  O `ViewModel` processa os eventos, interage com o `Model` (se necessário) e atualiza seu `StateFlow`, o que faz com que a `View` se redesenhe.
+3.  O `ViewModel` processa os eventos, interage com o `Model` (se necessário) e atualiza seu estado. A mudança de estado faz com que a `View` se redesenhe.
 
 **Fluxo:** `View` -> `ViewModel` -> `Model` -> `ViewModel` -> `View`
 
@@ -212,3 +205,87 @@ fun ErrorComponent(message: String, onRetryClick: () -> Unit) {
 6.  O usuário clica no botão "Recarregar" ou "Tentar Novamente".
 7.  O evento `onClick` chama a função `refreshTasks()` no `ViewModel`.
 8.  O ciclo recomeça a partir do passo 3.
+
+## Atividade Prática Guiada: Construindo a Tela de Tarefas
+
+Agora, vamos colocar a mão na massa e construir a tela de tarefas do zero, seguindo os conceitos que aprendemos.
+
+### Passo 1: Criar o `UiState`
+
+Primeiro, defina a classe selada que representará todos os possíveis estados da nossa UI.
+
+1.  Crie um novo arquivo Kotlin chamado `UiState.kt`.
+2.  Adicione o seguinte código:
+
+```kotlin
+// UiState.kt
+sealed class UiState<out T> {
+    object Loading : UiState<Nothing>()
+    data class Success<T>(val data: T) : UiState<T>()
+    data class Error(val message: String) : UiState<Nothing>()
+}
+```
+
+### Passo 2: Implementar o `TasksViewModel`
+
+Este `ViewModel` será o cérebro da nossa tela, gerenciando o estado e a lógica de busca de dados.
+
+1.  Certifique-se de ter as dependências do `ViewModel` e `Lifecycle` no seu `build.gradle.kts` (nível do módulo):
+    ```groovy
+    // build.gradle.kts
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    ```
+2.  Crie um novo arquivo Kotlin chamado `TasksViewModel.kt`.
+3.  Implemente a classe `TasksViewModel` exatamente como mostrado na seção "Exemplo Prático" acima. Ela conterá a lógica para buscar as tarefas e expor o `UiState`.
+
+### Passo 3: Construir a `View` com Jetpack Compose
+
+Agora, vamos criar os Composables que irão reagir às mudanças de estado.
+
+1.  Crie um novo arquivo Kotlin chamado `TasksScreen.kt`.
+2.  Adicione os quatro Composables (`TasksScreen`, `LoadingComponent`, `TasksListComponent`, `ErrorComponent`) exatamente como mostrado na seção "Exemplo Prático".
+    -   `TasksScreen` irá observar o `uiState` e decidir qual componente mostrar.
+    -   Os outros componentes são responsáveis por desenhar cada estado específico.
+
+### Passo 4: Integrar a Tela na Aplicação
+
+Para ver sua nova tela em ação, chame o `TasksScreen` Composable de dentro do `setContent` da sua `MainActivity`.
+
+```kotlin
+// MainActivity.kt
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import com.seutema.ui.theme.SeuTemaTheme // Altere para o seu tema
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            SeuTemaTheme { // Altere para o seu tema
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    // Chame sua tela aqui!
+                    TasksScreen()
+                }
+            }
+        }
+    }
+}
+```
+
+### Passo 5: Testar o Fluxo
+
+1.  Execute o aplicativo no emulador ou em um dispositivo físico.
+2.  **Observe o fluxo:** Você verá primeiro o indicador de progresso (`LoadingComponent`) por 2 segundos.
+3.  **Resultado:** Em seguida, a tela mudará para a lista de tarefas (`TasksListComponent`) ou para a mensagem de erro (`ErrorComponent`), dependendo do resultado da simulação.
+4.  **Interaja:** Clique no botão "Recarregar" ou "Tentar Novamente". Observe como a UI envia um evento para o `ViewModel`, que reinicia o fluxo de dados, começando novamente pelo estado de `Loading`.
+
+Parabéns! Você implementou com sucesso uma tela reativa usando MVVM e um fluxo de dados unidirecional no Android com Jetpack Compose.
