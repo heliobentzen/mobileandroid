@@ -7,12 +7,18 @@ Neste módulo, vamos mergulhar na arquitetura MVVM (Model-View-ViewModel) e como
 MVVM é um padrão de arquitetura que facilita a separação de responsabilidades no desenvolvimento da UI.
 
 -   **Model**: Representa os dados e a lógica de negócio. É responsável por buscar e manipular os dados (seja de uma API, banco de dados local, etc.).
+
 -   **View**: A camada de UI (Activities, Fragments, ou Composable functions). Sua única responsabilidade é exibir os dados recebidos do ViewModel e enviar eventos do usuário para ele. A View não contém nenhuma lógica de negócio.
+
 -   **ViewModel**: Atua como uma ponte entre o Model e a View. Ele expõe os dados do Model de uma forma que a View possa consumir facilmente e contém a lógica de apresentação. O ViewModel sobrevive a mudanças de configuração (como rotação de tela), mantendo o estado da UI.
 
 ## Gerenciamento de Estado com `StateFlow` e `UiState`
 
-Para comunicar o estado da UI do `ViewModel` para a `View`, usamos o `StateFlow`, uma evolução do `LiveData` que se integra perfeitamente com Coroutines. Para representar os diferentes estados da UI (carregando, sucesso, erro), criamos uma `sealed class` chamada `UiState`.
+Para comunicar o estado da UI do `ViewModel` para a `View`, usamos o `StateFlow`, uma evolução do `LiveData` que se integra perfeitamente com Coroutines. Para representar os diferentes estados que a nossa UI pode ter (como carregando, sucesso ou erro), usamos uma `sealed class`.
+
+**O que é uma `sealed class`?** É uma classe especial em Kotlin que nos permite definir um conjunto restrito e bem definido de subclasses. Isso é extremamente útil para representar estados, pois quando usamos uma expressão `when` para verificar o estado atual, o compilador do Kotlin nos obriga a tratar **todos** os possíveis estados (subclasses). Isso torna nosso código mais seguro e robusto, evitando que esqueçamos de tratar um caso.
+
+Vamos criar uma `sealed class` chamada `UiState` para modelar os estados da nossa tela:
 
 ```kotlin
 sealed class UiState<out T> {
@@ -22,16 +28,23 @@ sealed class UiState<out T> {
 }
 ```
 
--   `Loading`: Indica que os dados estão sendo carregados.
+UiState<out T>
+- É uma classe genérica que pode conter qualquer tipo de dado (T).
+- O modificador out indica que T é covariante, ou seja, só pode ser usado como tipo de retorno (ideal para leitura).
+
+-   `Loading`: Indica que os dados estão sendo carregados. Usa Nothing como tipo, pois não há dados disponíveis nesse momento.
 -   `Success`: Indica que os dados foram carregados com sucesso e os contém.
--   `Error`: Indica que ocorreu um erro e contém uma mensagem.
+-   `Error`: Indica que ocorreu um erro e contém uma mensagem. Contém uma message explicando o erro. Usa Nothing porque não há dados válidos nesse estado.
+
 
 ## Fluxo Unidirecional de Dados (UDF)
 
 UDF é um padrão de design onde o estado flui em apenas uma direção. Isso torna o fluxo de dados previsível e mais fácil de depurar.
 
 1.  **Estado (State)**: O `ViewModel` mantém e atualiza o estado. Ele expõe o estado para a `View` através de um `StateFlow`. A `View` observa esse fluxo e se atualiza sempre que o estado muda.
+
 2.  **Eventos (Events)**: A `View` captura eventos do usuário (cliques, texto digitado) e os envia para o `ViewModel` como chamadas de função.
+
 3.  O `ViewModel` processa os eventos, interage com o `Model` (se necessário) e atualiza seu estado. A mudança de estado faz com que a `View` se redesenhe.
 
 **Fluxo:** `View` -> `ViewModel` -> `Model` -> `ViewModel` -> `View`
