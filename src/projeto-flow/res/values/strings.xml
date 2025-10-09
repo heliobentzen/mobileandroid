@@ -1,0 +1,16 @@
+<resources>
+
+    <!-- Labels formatados -->
+    <string name="label_nome">Nome: %1$s</string>
+    <string name="label_idade">Idade: %1$d</string>
+
+    <!-- Outros textos opcionais -->
+    <string name="btn_ligar">Ligue já!</string>
+    <string name="loading">Carregando...</string>
+    <string name="error_message">Erro ao carregar os dados</string>
+
+    <string name="app_name">Primeira App</string>
+    <string name="btn_save">Salvar</string>
+    <string name="btnSave">Salvar</string>
+</resources>
+
