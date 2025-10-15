@@ -255,3 +255,44 @@ class MainActivity : AppCompatActivity() {
 2.  **Performance**: O `DiffUtil` executa os cálculos de diferença em uma thread de segundo plano, evitando que a UI trave, mesmo com listas grandes.
 3.  **Animações Automáticas**: O `RecyclerView` recebe as operações exatas de mudança (adição, remoção, alteração) e aplica as animações padrão de forma suave e bonita.
 4.  **Menos Bugs**: Automatizar as atualizações da lista reduz a chance de erros comuns, como `IndexOutOfBoundsException`, que podem ocorrer com a manipulação manual das notificações do adapter.
+
+---
+
+## Exercício Prático: Lista de Tarefas Interativa
+
+**Objetivo:** Aplicar os conceitos de `ListAdapter` e `DiffUtil` para criar uma lista de tarefas simples onde o usuário pode adicionar, remover e marcar tarefas como concluídas.
+
+**Passos:**
+
+1.  **Modelo de Dados:**
+    *   Crie uma `data class` chamada `Task` com os seguintes campos:
+        *   `id: Long` (use `System.currentTimeMillis()` para um ID simples e único)
+        *   `title: String`
+        *   `isCompleted: Boolean`
+
+2.  **Layout do Item (`item_task.xml`):**
+    *   Crie um layout para o item da lista que contenha:
+        *   Um `CheckBox` para marcar a tarefa como concluída.
+        *   Um `TextView` para exibir o título da tarefa.
+        *   Um `ImageButton` com um ícone de lixeira para remover a tarefa.
+
+3.  **DiffUtil Callback:**
+    *   Implemente um `DiffUtil.ItemCallback<Task>` para comparar os itens da tarefa.
+
+4.  **Adapter (`TaskAdapter.kt`):**
+    *   Crie um `TaskAdapter` que herde de `ListAdapter<Task, ...>`.
+    *   No `ViewHolder`, configure os listeners de clique para o `CheckBox` e o `ImageButton`.
+    *   Para comunicar os cliques de volta para a Activity/Fragment, defina funções lambda no construtor do adapter. Por exemplo: `class TaskAdapter(val onTaskClicked: (Task) -> Unit, val onDeleteClicked: (Task) -> Unit)`.
+    *   Chame essas lambdas de dentro dos listeners no `ViewHolder`.
+
+5.  **Interface do Usuário (`activity_main.xml`):**
+    *   Além do `RecyclerView`, adicione um `EditText` e um `Button` ("Adicionar") ao layout da sua activity para que o usuário possa inserir novas tarefas.
+
+6.  **Lógica na Activity/Fragment:**
+    *   Mantenha uma lista mutável de tarefas (ex: `private var taskList = mutableListOf<Task>()`).
+    *   Configure o `RecyclerView` e instancie seu `TaskAdapter`, passando as implementações das lambdas de clique.
+    *   **Adicionar Tarefa:** No listener de clique do botão "Adicionar", crie um novo objeto `Task`, adicione-o à `taskList`, e então chame `adapter.submitList(taskList.toList())`. Usar `.toList()` cria uma nova lista, o que é crucial para que o `DiffUtil` detecte a mudança.
+    *   **Marcar como Concluída:** Na lambda `onTaskClicked`, encontre a tarefa na `taskList`, crie uma cópia dela com o status `isCompleted` invertido, substitua a tarefa antiga pela nova na lista e chame `submitList`.
+    *   **Remover Tarefa:** Na lambda `onDeleteClicked`, remova a tarefa da `taskList` e chame `submitList`.
+
+Ao final, você terá uma aplicação funcional que demonstra o poder e a simplicidade do `ListAdapter`, com animações automáticas para todas as operações na lista.
