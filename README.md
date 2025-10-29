@@ -35,7 +35,7 @@ Formar o aluno para entregar um app Android profissional usando a stack estável
 - **Networking (Retrofit + OkHttp)**: `suspend functions` e tratamento de erros/timeouts.
 - **Persistência**: `Room` (Entity, DAO, migrations básicas) e `DataStore` para preferências.
 - **Repository Pattern**: Combinar fontes de dados local e remota (padrão `NetworkBoundResource` simplificado).
-- **Injeção de Dependência (Hilt)**: Injetar `Retrofit`, `DAO` e `Repository`.
+
 
 **Entrega parcial**: App consumindo uma API real, com cache local em Room para funcionamento offline.
 
