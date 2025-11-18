@@ -1,438 +1,430 @@
-# Retrofit: do essencial a um projeto completo
-Retrofit é um cliente HTTP de alto nível para Android/Kotlin que mapeia endpoints REST para interfaces Kotlin tipadas. As requisições são definidas por anotações (@GET, @POST, @Path, @Query), o transporte é feito pelo OkHttp e a conversão de JSON é delegada a um converter (neste guia, Kotlinx Serialization). Com coroutines, cada chamada vira uma função suspend, simples e segura.
+# Retrofit + Gson + Coroutines + Jetpack Compose (guia progressivo)
 
-Por que usar:
-- Tipagem forte do contrato de rede (menos parsing manual e erros).
-- Integração direta com OkHttp (timeouts, interceptors, logging).
-- Converters pluggables (kotlinx-serialization, Moshi, Gson).
-- Call adapters para coroutines/Flow e ergonomia moderna.
-- Testabilidade com MockWebServer e fácil simulação de respostas.
-- Controle de status/headers via Response<T> quando necessário.
+Objetivo: consumir uma API pública com Retrofit, organizar em camadas (instância, model, ViewModel, UI com Compose), usando `suspend fun` e evoluindo o conteúdo de forma progressiva.
 
-O que está incluso:
-- Cliente HTTP tipado, tolerante a mudanças de JSON.
-- Repositório com Result<T> e mapeamento de erros.
-- ViewModel com Flow/StateFlow e UI (Compose) mínima.
-- Teste de rede com MockWebServer.
-- Estrutura de pastas e dependências.
+API usada: JSONPlaceholder (sem chave)
+- Base URL: https://jsonplaceholder.typicode.com/
+- Endpoints: /posts e /posts/{id}
 
-Base URL usada:
-- https://jsonplaceholder.typicode.com/
 
-Estrutura sugerida do módulo app:
-- core/network/Network.kt
-- feature/posts/data/remote/PostsApi.kt
-- feature/posts/data/remote/Models.kt
-- feature/posts/data/PostsRepository.kt
-- feature/posts/ui/PostsViewModel.kt
-- feature/posts/ui/PostsScreen.kt
-- AppServiceLocator.kt
-
-## Dependências (Kotlin DSL)
-
-build.gradle.kts do módulo app:
+Dependências (build.gradle.kts do módulo app)
 ```kotlin
-plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.serialization")
-}
-
-android {
-    namespace = "com.example.app"
-    compileSdk = 34
-    defaultConfig {
-        minSdk = 24
-    }
-}
-
 dependencies {
-    // Retrofit + converter Kotlinx Serialization
+    // Retrofit + Gson
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
 
-    // OkHttp + logging apenas em debug
-    implementation(platform("com.squareup.okhttp3:okhttp-bom:4.12.0"))
-    implementation("com.squareup.okhttp3:okhttp")
-    debugImplementation("com.squareup.okhttp3:logging-interceptor")
-
-    // Kotlinx Serialization (JSON) — use a mais recente do Maven Central
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    // OkHttp + logging
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    // Lifecycle/ViewModel
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
+    // Lifecycle / ViewModel
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
 
-    // Compose (opcional, apenas para a tela de exemplo)
-    implementation(platform("androidx.compose:compose-bom:2024.10.01"))
+    // Compose
+    implementation(platform("androidx.compose:compose-bom:2024.10.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-
-    // Testes
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    implementation("androidx.activity:activity-compose:1.9.2")
 }
 ```
 
-## 1) Core de rede: OkHttp, Retrofit e JSON
+Estrutura de pastas (sugestão)
+- data
+  - remote (Retrofit, services, DTOs)
+  - repository
+- domain
+  - model (modelos de domínio)
+- presentation
+  - post (ViewModel e UI/Compose)
 
-core/network/Network.kt
+Parte 1: Instância do Retrofit (camada data/remote)
 ```kotlin
-package com.example.app.core.network
+// data/remote/ApiClient.kt
+package com.example.retrofitdemo.data.remote
 
-import kotlinx.serialization.json.Json
-import okhttp3.Interceptor
+import com.example.retrofitdemo.data.remote.service.PostService
+import com.google.gson.GsonBuilder
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
-import okhttp3.MediaType.Companion.toMediaType
 import retrofit2.Retrofit
-import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
-// JSON tolerante a mudanças de contrato
-val json: Json = Json {
-    ignoreUnknownKeys = true
-    explicitNulls = false
-    coerceInputValues = true
-}
+object ApiClient {
+    private const val BASE_URL = "https://jsonplaceholder.typicode.com/"
 
-fun provideOkHttp(
-    isDebug: Boolean,
-    tokenProvider: () -> String? = { null }
-): OkHttpClient {
-    val auth = Interceptor { chain ->
-        val req = chain.request().newBuilder().apply {
-            tokenProvider()?.let { addHeader("Authorization", "Bearer $it") }
-            addHeader("Accept", "application/json")
-        }.build()
-        chain.proceed(req)
+    private val logging = HttpLoggingInterceptor().apply {
+        level = HttpLoggingInterceptor.Level.BASIC
     }
 
-    val logging = HttpLoggingInterceptor().apply {
-        level = if (isDebug) HttpLoggingInterceptor.Level.BODY
-        else HttpLoggingInterceptor.Level.NONE
-    }
-
-    return OkHttpClient.Builder()
+    private val okHttp = OkHttpClient.Builder()
+        .addInterceptor(logging)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
-        .writeTimeout(20, TimeUnit.SECONDS)
-        .addInterceptor(auth)
-        .addInterceptor(logging)
         .build()
-}
 
-fun provideRetrofit(baseUrl: String, client: OkHttpClient): Retrofit {
-    val contentType = "application/json".toMediaType()
-    return Retrofit.Builder()
-        .baseUrl(baseUrl) // sempre terminar com /
-        .addConverterFactory(json.asConverterFactory(contentType))
-        .client(client)
+    private val gson = GsonBuilder()
+        .setLenient()
+        .create()
+
+    private val retrofit: Retrofit = Retrofit.Builder()
+        .baseUrl(BASE_URL)
+        .client(okHttp)
+        .addConverterFactory(GsonConverterFactory.create(gson))
         .build()
+
+    val postService: PostService by lazy {
+        retrofit.create(PostService::class.java)
+    }
 }
 ```
 
-## 2) API e modelos
-
-feature/posts/data/remote/Models.kt
+Parte 2: Modelos (DTO e Domain)
 ```kotlin
-package com.example.app.feature.posts.data.remote
+// data/remote/dto/PostDto.kt
+package com.example.retrofitdemo.data.remote.dto
 
-import kotlinx.serialization.Serializable
+import com.google.gson.annotations.SerializedName
 
-@Serializable
-data class Post(
-    val id: Int? = null,
-    val userId: Int,
-    val title: String,
-    val body: String
+data class PostDto(
+    @SerializedName("userId") val userId: Int,
+    @SerializedName("id") val id: Int,
+    @SerializedName("title") val title: String,
+    @SerializedName("body") val body: String
 )
 ```
 
-feature/posts/data/remote/PostsApi.kt
 ```kotlin
-package com.example.app.feature.posts.data.remote
+// domain/model/Post.kt
+package com.example.retrofitdemo.domain.model
 
-import retrofit2.Response
-import retrofit2.http.*
+data class Post(
+    val id: Int,
+    val title: String,
+    val body: String,
+    val authorId: Int
+)
+```
 
-interface PostsApi {
+Parte 3: Service (endpoints com suspend fun)
+```kotlin
+// data/remote/service/PostService.kt
+package com.example.retrofitdemo.data.remote.service
+
+import com.example.retrofitdemo.data.remote.dto.PostDto
+import retrofit2.http.GET
+import retrofit2.http.Path
+import retrofit2.http.Query
+
+interface PostService {
     @GET("posts")
-    suspend fun getPosts(): List<Post> // corpo confiável -> T direto
+    suspend fun getPosts(): List<PostDto>
 
     @GET("posts/{id}")
-    suspend fun getPost(@Path("id") id: Int): Response<Post> // precisa de status
+    suspend fun getPost(@Path("id") id: Int): PostDto
 
-    @POST("posts")
-    suspend fun create(@Body post: Post): Response<Post>
+    @GET("posts")
+    suspend fun getPostsByUser(@Query("userId") userId: Int): List<PostDto>
 }
 ```
 
-## 3) Erros e Result
-
-Crie um mapeamento simples e reutilizável:
-
-feature/posts/data/ResultErrors.kt
+Parte 4: Repository (camada data/repository)
 ```kotlin
-package com.example.app.feature.posts.data
+// data/repository/PostRepository.kt
+package com.example.retrofitdemo.data.repository
 
-import kotlinx.serialization.SerializationException
-import retrofit2.HttpException
-import java.io.IOException
+import com.example.retrofitdemo.domain.model.Post
 
-sealed interface AppError {
-    data class Network(val cause: IOException) : AppError
-    data class Http(val code: Int, val message: String?) : AppError
-    data class Parse(val cause: SerializationException) : AppError
-    data class Unknown(val cause: Throwable) : AppError
-}
-
-fun Throwable.toAppError(): AppError = when (this) {
-    is IOException -> AppError.Network(this)
-    is HttpException -> AppError.Http(code(), message())
-    is SerializationException -> AppError.Parse(this)
-    else -> AppError.Unknown(this)
+interface PostRepository {
+    suspend fun getPosts(): List<Post>
+    suspend fun getPost(id: Int): Post
+    suspend fun getPostsByUser(userId: Int): List<Post>
 }
 ```
 
-## 4) Repositório
-
-feature/posts/data/PostsRepository.kt
 ```kotlin
-package com.example.app.feature.posts.data
+// data/repository/PostRepositoryImpl.kt
+package com.example.retrofitdemo.data.repository
 
-import com.example.app.feature.posts.data.remote.Post
-import com.example.app.feature.posts.data.remote.PostsApi
-import retrofit2.HttpException
+import com.example.retrofitdemo.data.remote.service.PostService
+import com.example.retrofitdemo.domain.model.Post
 
-class PostsRepository(private val api: PostsApi) {
+class PostRepositoryImpl(
+    private val service: PostService
+) : PostRepository {
 
-    suspend fun list(): Result<List<Post>> = runCatching { api.getPosts() }
-
-    suspend fun get(id: Int): Result<Post> = runCatching {
-        val resp = api.getPost(id)
-        if (resp.isSuccessful) resp.body() ?: error("Empty body")
-        else throw HttpException(resp)
+    override suspend fun getPosts(): List<Post> {
+        return service.getPosts().map {
+            Post(
+                id = it.id,
+                title = it.title,
+                body = it.body,
+                authorId = it.userId
+            )
+        }
     }
 
-    suspend fun create(post: Post): Result<Post> = runCatching {
-        val resp = api.create(post)
-        if (resp.isSuccessful) resp.body() ?: error("Empty body")
-        else throw HttpException(resp)
+    override suspend fun getPost(id: Int): Post {
+        val dto = service.getPost(id)
+        return Post(
+            id = dto.id,
+            title = dto.title,
+            body = dto.body,
+            authorId = dto.userId
+        )
+    }
+
+    override suspend fun getPostsByUser(userId: Int): List<Post> {
+        return service.getPostsByUser(userId).map {
+            Post(
+                id = it.id,
+                title = it.title,
+                body = it.body,
+                authorId = it.userId
+            )
+        }
     }
 }
 ```
 
-## 5) Service Locator (objeto único para wiring)
-
-AppServiceLocator.kt
+Parte 5: ViewModel (StateFlow + coroutines)
 ```kotlin
-package com.example.app
+// presentation/post/PostUiState.kt
+package com.example.retrofitdemo.presentation.post
 
-import com.example.app.core.network.provideOkHttp
-import com.example.app.core.network.provideRetrofit
-import com.example.app.feature.posts.data.PostsRepository
-import com.example.app.feature.posts.data.remote.PostsApi
+import com.example.retrofitdemo.domain.model.Post
 
-object AppServiceLocator {
-    private const val BASE_URL = "https://jsonplaceholder.typicode.com/"
-
-    private val client by lazy { provideOkHttp(isDebug = BuildConfig.DEBUG) }
-    private val retrofit by lazy { provideRetrofit(BASE_URL, client) }
-
-    private val postsApi by lazy { retrofit.create(PostsApi::class.java) }
-
-    val postsRepository by lazy { PostsRepository(postsApi) }
+sealed interface PostUiState {
+    data object Loading : PostUiState
+    data class Success(val posts: List<Post>) : PostUiState
+    data class Error(val message: String) : PostUiState
 }
 ```
 
-Opcional: se precisar de token, injete um tokenProvider no provideOkHttp.
-
-## 6) ViewModel e estados
-
-feature/posts/ui/PostsViewModel.kt
 ```kotlin
-package com.example.app.feature.posts.ui
+// presentation/post/PostViewModel.kt
+package com.example.retrofitdemo.presentation.post
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.app.feature.posts.data.PostsRepository
-import com.example.app.feature.posts.data.toAppError
-import com.example.app.feature.posts.data.remote.Post
+import com.example.retrofitdemo.data.repository.PostRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-sealed interface PostsUiState {
-    object Idle : PostsUiState
-    object Loading : PostsUiState
-    data class Success(val items: List<Post>) : PostsUiState
-    data class Error(val message: String) : PostsUiState
-}
+class PostViewModel(
+    private val repository: PostRepository
+) : ViewModel() {
 
-class PostsViewModel(private val repo: PostsRepository) : ViewModel() {
-    private val _state = MutableStateFlow<PostsUiState>(PostsUiState.Idle)
-    val state: StateFlow<PostsUiState> = _state
+    private val _uiState = MutableStateFlow<PostUiState>(PostUiState.Loading)
+    val uiState: StateFlow<PostUiState> = _uiState.asStateFlow()
 
-    fun load() {
-        _state.value = PostsUiState.Loading
+    init { loadPosts() }
+
+    fun loadPosts() {
         viewModelScope.launch {
-            repo.list()
-                .onSuccess { _state.value = PostsUiState.Success(it) }
-                .onFailure {
-                    val msg = when (val e = it.toAppError()) {
-                        is com.example.app.feature.posts.data.AppError.Network -> "Conexão indisponível."
-                        is com.example.app.feature.posts.data.AppError.Http -> "Erro HTTP ${e.code}."
-                        is com.example.app.feature.posts.data.AppError.Parse -> "Resposta inesperada."
-                        is com.example.app.feature.posts.data.AppError.Unknown -> "Erro desconhecido."
-                    }
-                    _state.value = PostsUiState.Error(msg)
-                }
-        }
-    }
-
-    fun createSample() {
-        viewModelScope.launch {
-            repo.create(Post(userId = 1, title = "Novo", body = "Conteúdo"))
-                .onSuccess { load() }
-                .onFailure { /* tratar se necessário */ }
+            _uiState.value = PostUiState.Loading
+            runCatching { repository.getPosts() }
+                .onSuccess { _uiState.value = PostUiState.Success(it) }
+                .onFailure { _uiState.value = PostUiState.Error(it.message ?: "Erro inesperado") }
         }
     }
 }
 ```
 
-Se não usar DI, instancie a ViewModel com um factory simples, obtendo o repositório do AppServiceLocator.
-
-## 7) UI (Compose) mínima
-
-feature/posts/ui/PostsScreen.kt
+Parte 6: UI com Jetpack Compose
 ```kotlin
-package com.example.app.feature.posts.ui
+// presentation/post/PostScreen.kt
+package com.example.retrofitdemo.presentation.post
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.app.feature.posts.data.remote.Post
+import com.example.retrofitdemo.domain.model.Post
 
 @Composable
-fun PostsScreen(vm: PostsViewModel) {
-    val state by vm.state.collectAsStateWithLifecycle()
+fun PostScreen(
+    viewModel: PostViewModel,
+    modifier: Modifier = Modifier
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) { vm.load() }
+    when (val s = state) {
+        is PostUiState.Loading -> Box(
+            modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) { CircularProgressIndicator() }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Posts") }) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = vm::createSample) { Text("+") }
+        is PostUiState.Error -> Box(
+            modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Erro: ${s.message}")
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { viewModel.loadPosts() }) {
+                    Text("Tentar novamente")
+                }
+            }
         }
-    ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            when (val s = state) {
-                is PostsUiState.Idle -> {}
-                is PostsUiState.Loading -> CircularProgressIndicator(Modifier.padding(16.dp))
-                is PostsUiState.Error -> Text(s.message, Modifier.padding(16.dp))
-                is PostsUiState.Success -> PostsList(s.items)
+
+        is PostUiState.Success -> PostList(posts = s.posts, modifier)
+    }
+}
+
+@Composable
+private fun PostList(posts: List<Post>, modifier: Modifier = Modifier) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(posts, key = { it.id }) { post ->
+            PostItem(post)
+        }
+    }
+}
+
+@Composable
+private fun PostItem(post: Post) {
+    ElevatedCard {
+        Column(Modifier.padding(16.dp)) {
+            Text(text = post.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(6.dp))
+            Text(text = post.body, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+```
+
+Factory extraída
+```kotlin
+// presentation/post/PostViewModelFactory.kt
+package com.example.retrofitdemo.presentation.post
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import com.example.retrofitdemo.data.repository.PostRepository
+
+class PostViewModelFactory(
+    private val repository: PostRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(PostViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return PostViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+```
+
+Activity
+```kotlin
+// MainActivity.kt
+package com.example.retrofitdemo
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.lifecycle.ViewModelProvider
+import androidx.compose.material3.MaterialTheme
+import com.example.retrofitdemo.data.remote.ApiClient
+import com.example.retrofitdemo.data.repository.PostRepositoryImpl
+import com.example.retrofitdemo.presentation.post.PostScreen
+import com.example.retrofitdemo.presentation.post.PostViewModel
+import com.example.retrofitdemo.presentation.post.PostViewModelFactory
+
+class MainActivity : ComponentActivity() {
+    private val viewModel by lazy {
+        ViewModelProvider(
+            this,
+            PostViewModelFactory(PostRepositoryImpl(ApiClient.postService))
+        )[PostViewModel::class.java]
+    }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val repo = PostRepositoryImpl(ApiClient.postService)
+        val viewModel = ViewModelProvider(
+            this,
+            PostViewModelFactory(repo)
+        )[PostViewModel::class.java]
+
+        setContent {
+            MaterialTheme {
+                PostScreen(viewModel = viewModel)
             }
         }
     }
 }
-
-@Composable
-private fun PostsList(items: List<Post>) {
-    LazyColumn {
-        items(items) { p ->
-            ListItem(
-                headlineContent = { Text(p.title) },
-                supportingContent = { Text(p.body) }
-            )
-            Divider()
-        }
-    }
-}
 ```
 
-Factory simples (se necessário):
+Parte 7: Erros, logging e boas práticas
+- Logging: HttpLoggingInterceptor (BASIC). Em debug, pode usar BODY.
+- Tratamento de exceções: HttpException, IOException, mapeadas em ViewModel.
+- Separar DTO de Domain: mantém isolamento sem precisar de arquivo mapper quando transformação é simples.
+- Evitar trabalho pesado na UI thread: usar withContext(Dispatchers.Default) se necessário.
+
+Exemplo de uso com Response (mapeando inline):
 ```kotlin
-class PostsVmFactory(
-    private val repo: com.example.app.feature.posts.data.PostsRepository
-) : androidx.lifecycle.ViewModelProvider.Factory {
-    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-        return com.example.app.feature.posts.ui.PostsViewModel(repo) as T
+// Service
+@GET("posts")
+suspend fun getPostsResponse(): retrofit2.Response<List<PostDto>>
+
+// Repository
+val response = service.getPostsResponse()
+if (response.isSuccessful) {
+    val list = response.body().orEmpty().map {
+        Post(
+            id = it.id,
+            title = it.title,
+            body = it.body,
+            authorId = it.userId
+        )
     }
+} else {
+    throw IllegalStateException("HTTP ${response.code()}: ${response.message()}")
 }
 ```
 
-## 8) Teste de rede com MockWebServer
-
-feature/posts/data/PostsRepositoryTest.kt
+Parte 8: Evoluindo o exemplo
+- Filtro por usuário (query):
 ```kotlin
-package com.example.app.feature.posts.data
-
-import com.example.app.core.network.provideOkHttp
-import com.example.app.core.network.provideRetrofit
-import com.example.app.feature.posts.data.remote.PostsApi
-import kotlinx.coroutines.test.runTest
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
-import org.junit.Assert.assertTrue
-import org.junit.Test
-
-class PostsRepositoryTest {
-    @Test
-    fun list_success() = runTest {
-        val server = MockWebServer().apply {
-            enqueue(MockResponse().setResponseCode(200).setBody(
-                """[{"userId":1,"id":1,"title":"t","body":"b"}]"""
-            ))
-            start()
-        }
-
-        val client = provideOkHttp(isDebug = false)
-        val retrofit = provideRetrofit(server.url("/").toString(), client)
-        val repo = PostsRepository(retrofit.create(PostsApi::class.java))
-
-        val result = repo.list()
-        assertTrue(result.isSuccess)
-
-        server.shutdown()
-    }
+// ViewModel
+fun loadPostsByUser(userId: Int) = viewModelScope.launch {
+    runCatching { repository.getPostsByUser(userId) }
+        .onSuccess { /* atualizar estado */ }
+        .onFailure { /* erro */ }
 }
 ```
 
-O que o teste garante:
-- Conversão JSON ↔ objeto funciona.
-- Retrofit/OkHttp estão plugados corretamente.
-- Sem dependência de internet para testar.
+- Detalhe de um Post:
+  - Service: getPost(id)
+  - Novo UiState de detalhe ou outra ViewModel.
 
-## Checklist essencial e moderno
+- DI com Hilt (opcional):
+  - Módulos para Retrofit, Service e Repository.
 
-- JSON: Json(ignoreUnknownKeys=true, explicitNulls=false).
-- Retrofit converter: kotlinx-serialization com asConverterFactory.
-- OkHttp: timeouts explícitos, Authorization opcional, logging só em debug.
-- Result<T> + mapper de erros (IOException/HttpException/SerializationException).
-- Response<T> apenas quando precisar ler status/headers; senão, use T direto.
-- UI reativa (Flow/StateFlow) e cancelamento por lifecycle (viewModelScope).
-- Testes com MockWebServer cobrindo 200/404/500 e timeouts.
+Dicas finais
+- baseUrl com barra final.
+- Funções de rede como suspend.
+- StateFlow para reatividade.
+- Testes com MockWebServer.
+- Ajustar timeouts e mensagens de erro para usuário.
 
-## Exercício rápido
-
-- Adicione paginação simples na lista (stateful no ViewModel, carregando páginas).
-- Implemente cache em memória no Repository, com invalidação após 60s.
-- Mostre mensagens diferentes para timeout (IOException), 4xx e 5xx.
-- Cubra com testes no MockWebServer para sucesso e erros.
-
-Pronto: um projeto enxuto, atual e pronto para evoluir com DI (Hilt/Koin) se necessário, mantendo simplicidade para aprender e manter.
+Com isso, a app lista posts usando Retrofit+Gson com coroutines e Compose, sem camada de mapper dedicada (conversão inline no repository).

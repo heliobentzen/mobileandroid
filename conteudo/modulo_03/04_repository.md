@@ -1,155 +1,75 @@
-# Repository Pattern: combinando fonte local e remota (NetworkBoundResource simplificado)
-Exemplos usando a API pública JSONPlaceholder (https://jsonplaceholder.typicode.com)
+# Repository Pattern com Room + Retrofit (JSONPlaceholder)
 
-Objetivo:
-- Ler rápido do cache local (ex.: Room).
-- Atualizar com dados mais recentes da API pública.
-- Expor um único fluxo de dados para a UI.
+Exemplo mínimo, focado em aprendizagem e clareza. A lógica: tentar ler do banco; se vazio, buscar remoto, salvar e devolver. Camadas: Entity (Room), DAO, Database, API (Retrofit), Repository, ViewModel, UI (Compose).
 
-Quando usar:
-- Listas ou detalhes que devem funcionar offline e sincronizar quando online.
-- Quando é necessário cache simples com atualização automática.
+## Dependências (build.gradle app)
 
-Fluxo em 4 passos:
-1) Ler do banco local.
-2) Decidir se deve buscar remoto (ex.: cache vazio ou antigo).
-3) Se buscar, salvar o resultado no banco.
-4) Emitir o dado do banco para a UI.
-
-Pré-requisitos e dependências (não nativas):
-- Room (persistência local)
-- Retrofit + Converter (Moshi ou Gson) + OkHttp (rede)
-- Kotlin Coroutines (Flow)
-- ViewModel (AndroidX)
-
-build.gradle.kts (módulo app):
 ```kotlin
-plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("com.google.devtools.ksp")
-}
-
-android { /* ... config padrão ... */ }
-
 dependencies {
-    // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-
-    // Lifecycle/ViewModel
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6")
-
-    // Room
     implementation("androidx.room:room-runtime:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
 
-    // Retrofit + Moshi (pode trocar por Gson se preferir)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-moshi:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.google.code.gson:gson:2.10.1")
 
-    // OkHttp (log)
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+
+    implementation("androidx.compose.ui:ui:1.7.0")
+    implementation("androidx.compose.material3:material3:1.2.1")
+    implementation("androidx.activity:activity-compose:1.9.2")
 }
 ```
 
-AndroidManifest.xml (permite rede):
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-```
+## Entity + DAO + Database (Room)
 
-Estrutura de pastas (sugestão):
-```
-app/src/main/java/com/seuapp/
-  data/
-    local/
-      AppDatabase.kt
-      PostDao.kt
-    remote/
-      PostApi.kt
-      PostDto.kt
-    repository/
-      PostRepository.kt
-      NetworkBoundResource.kt
-  domain/
-    model/
-      Post.kt
-  ui/
-    PostViewModel.kt
-```
-
-Função base:
 ```kotlin
-import kotlinx.coroutines.flow.*
+import androidx.room.*
 
-fun <T> networkBoundResource(
-    query: () -> Flow<T>,
-    fetch: suspend () -> T,
-    saveFetchResult: suspend (T) -> Unit,
-    shouldFetch: (T) -> Boolean = { true }
-): Flow<T> = flow {
-    val cached = query().firstOrNull()
-    if (cached == null || shouldFetch(cached)) {
-        try {
-            val remote = fetch()
-            saveFetchResult(remote)
-        } catch (_: Exception) {
-            // simples: ignora erro e segue emitindo o cache
-        }
-    }
-    emitAll(query())
-}
-```
-
-Exemplo (Kotlin + Room + Retrofit) com JSONPlaceholder:
-
-Modelo/Entity (domain/model):
-```kotlin
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-
-@Entity(tableName = "post")
-data class Post(
+@Entity(tableName = "posts")
+data class PostEntity(
     @PrimaryKey val id: Int,
+    val userId: Int,
     val title: String,
     val body: String
 )
-```
-
-DAO (data/local):
-```kotlin
-import androidx.room.*
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PostDao {
-    @Query("SELECT * FROM post ORDER BY id")
-    fun observeAll(): Flow<List<Post>>
-
-    @Query("SELECT * FROM post WHERE id = :id")
-    fun observeById(id: Int): Flow<Post?>
+    @Query("SELECT * FROM posts")
+    suspend fun getAll(): List<PostEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(posts: List<Post>)
+    suspend fun insertAll(posts: List<PostEntity>)
 }
-```
 
-Database (data/local):
-```kotlin
-import androidx.room.Database
-import androidx.room.RoomDatabase
-
-@Database(entities = [Post::class], version = 1, exportSchema = false)
+@Database(entities = [PostEntity::class], version = 1)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
+
+    companion object {
+        @Volatile private var INSTANCE: AppDatabase? = null
+
+        fun get(context: android.content.Context): AppDatabase =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "app.db"
+                ).build().also { INSTANCE = it }
+            }
+    }
 }
 ```
 
-API + mapeamento (data/remote), usando JSONPlaceholder:
+## API Retrofit
+
 ```kotlin
 import retrofit2.http.GET
-import retrofit2.http.Path
 
 data class PostDto(
     val userId: Int,
@@ -158,84 +78,216 @@ data class PostDto(
     val body: String
 )
 
-interface PostApi {
+interface JsonPlaceholderApi {
     @GET("posts")
     suspend fun getPosts(): List<PostDto>
-
-    @GET("posts/{id}")
-    suspend fun getPost(@Path("id") id: Int): PostDto
 }
 
-fun PostDto.toEntity() = Post(id = id, title = title, body = body)
-```
-
-Configuração rápida de Retrofit e Room (ex.: em um módulo de DI ou inicialização):
-```kotlin
-import android.content.Context
-import androidx.room.Room
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
-
-fun provideDatabase(context: Context) =
-    Room.databaseBuilder(context, AppDatabase::class.java, "app.db").build()
-
-fun providePostApi(): PostApi {
-    val logging = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+object ApiFactory {
+    fun create(): JsonPlaceholderApi {
+        val gson = com.google.gson.GsonBuilder().create()
+        val retrofit = retrofit2.Retrofit.Builder()
+            .baseUrl("https://jsonplaceholder.typicode.com/")
+            .addConverterFactory(
+                retrofit2.converter.gson.GsonConverterFactory
+                    .create(gson)
+            )
+            .build()
+        return retrofit.create(JsonPlaceholderApi::class.java)
     }
-    val client = OkHttpClient.Builder().addInterceptor(logging).build()
-
-    return Retrofit.Builder()
-        .baseUrl("https://jsonplaceholder.typicode.com/")
-        .addConverterFactory(MoshiConverterFactory.create())
-        .client(client)
-        .build()
-        .create(PostApi::class.java)
 }
 ```
 
-Repository (data/repository):
-```kotlin
-import kotlinx.coroutines.flow.Flow
+## Model (opcional para camada de domínio)
 
+```kotlin
+data class Post(
+    val id: Int,
+    val userId: Int,
+    val title: String,
+    val body: String
+)
+
+fun PostEntity.toModel() = Post(id, userId, title, body)
+fun PostDto.toEntity() = PostEntity(id, userId, title, body)
+```
+
+## Repository
+
+```kotlin
 class PostRepository(
     private val dao: PostDao,
-    private val api: PostApi
+    private val api: JsonPlaceholderApi
 ) {
-    fun posts(): Flow<List<Post>> = networkBoundResource(
-        query = { dao.observeAll() },
-        fetch = { api.getPosts().map { it.toEntity() } },
-        saveFetchResult = { dao.upsertAll(it) },
-        shouldFetch = { it.isEmpty() } // busca se cache vazio
-    )
+    // Obtém posts: se banco vazio, busca remoto e preenche.
+    suspend fun getPosts(): List<Post> {
+        val local = dao.getAll()
+        if (local.isNotEmpty()) {
+            return local.map { it.toModel() }
+        }
+        val remote = api.getPosts()
+        val entities = remote.map { it.toEntity() }
+        dao.insertAll(entities)
+        return entities.map { it.toModel() }
+    }
 
-    fun post(id: Int): Flow<Post?> = networkBoundResource(
-        query = { dao.observeById(id) },
-        fetch = { api.getPost(id).toEntity() },
-        saveFetchResult = { entity -> dao.upsertAll(listOf(entity)) },
-        shouldFetch = { it == null } // baixa se não existir no cache
-    )
+    // Força atualização remota.
+    suspend fun refresh(): List<Post> {
+        val remote = api.getPosts()
+        val entities = remote.map { it.toEntity() }
+        dao.insertAll(entities)
+        return entities.map { it.toModel() }
+    }
 }
 ```
 
-Uso na ViewModel (ui):
+## ViewModel
+
 ```kotlin
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 
-class PostViewModel(repo: PostRepository) : ViewModel() {
-    val posts = repo.posts()        // Flow<List<Post>>
-    fun post(id: Int) = repo.post(id) // Flow<Post?>
+class PostViewModel(
+    private val repository: PostRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    data class UiState(
+        val loading: Boolean = false,
+        val posts: List<Post> = emptyList(),
+        val error: String? = null
+    )
+
+    init {
+        loadInitial()
+    }
+
+    private fun loadInitial() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true, error = null) }
+            try {
+                val data = repository.getPosts()
+                _uiState.update { it.copy(loading = false, posts = data) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(loading = false, error = e.message) }
+            }
+        }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true, error = null) }
+            try {
+                val data = repository.refresh()
+                _uiState.update { it.copy(loading = false, posts = data) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(loading = false, error = e.message) }
+            }
+        }
+    }
 }
 ```
 
-Dicas:
-- shouldFetch pode considerar tempo (TTL) salvo em Preferences.
-- Sempre salvar primeiro no DB e expor o Flow do DAO (fonte única).
-- Em caso de erro de rede, mantenha o cache (offline first).
-- JSONPlaceholder não requer autenticação, tem dados estáticos e limites razoáveis para testes.
+## Factory
 
-Exercício (prática rápida):
-- Objetivo: adaptar para buscar “detalhe do Post” (um item por id) — já mostrado em PostRepository.post(id).
-- Teste: primeiro carregamento deve vir do cache se existir, senão buscar da API e salvar; chamadas seguintes devem ler do DB.
+```kotlin
+class PostViewModelFactory(
+    private val context: android.content.Context
+) : androidx.lifecycle.ViewModelProvider.Factory {
+    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+        val db = AppDatabase.get(context)
+        val api = ApiFactory.create()
+        val repo = PostRepository(db.postDao(), api)
+        return PostViewModel(repo) as T
+    }
+}
+```
+
+## UI (Jetpack Compose)
+
+```kotlin
+import androidx.compose.runtime.*
+import androidx.compose.material3.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.lifecycle.viewmodel.compose.viewModel
+
+@Composable
+fun PostScreen(
+    vm: PostViewModel = viewModel(factory = PostViewModelFactory(LocalContext.current))
+) {
+    val state by vm.uiState.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Posts") },
+                actions = {
+                    IconButton(onClick = { vm.refresh() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Atualizar")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(Modifier.padding(padding).fillMaxSize()) {
+            when {
+                state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.error != null -> Text(
+                    "Erro: ${state.error}",
+                    Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.error
+                )
+                else -> PostList(state.posts)
+            }
+        }
+    }
+}
+
+@Composable
+fun PostList(posts: List<Post>) {
+    LazyColumn {
+        items(posts) { post ->
+            Card(
+                Modifier
+                    .padding(8.dp)
+                    .fillMaxWidth()
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(post.title, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(post.body, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+```
+
+## Activity
+
+```kotlin
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MaterialTheme {
+                PostScreen()
+            }
+        }
+    }
+}
+```
+
+## Observações
+
+- Erros tratados de forma simples (Exception genérica).
+- Para produção usar DI (Hilt) e melhor estratégia de cache/atualização.
+- Atualização manual via botão e automática quando vazio.
+- Exemplo não cobre paginação nem testes.
+
