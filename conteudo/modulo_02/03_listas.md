@@ -1,30 +1,26 @@
-# Listas com RecyclerView, ListAdapter e DiffUtil
+# Listas com Jetpack Compose (LazyColumn, estado e chaves)
 
-Criar listas em Android é uma tarefa fundamental. A forma moderna e eficiente de fazer isso é usando `RecyclerView` em conjunto com `ListAdapter` e `DiffUtil`. Essa combinação simplifica o código, melhora a performance e fornece animações de atualização de lista gratuitamente.
-
-Vamos aprender passo a passo.
-
-## Por que `ListAdapter` e `DiffUtil`?
-
--   **`RecyclerView`**: É o componente principal para exibir listas longas de forma eficiente, reciclando as visualizações dos itens que saem da tela.
--   **`ListAdapter`**: É uma especialização do `RecyclerView.Adapter` que já vem preparada para lidar com atualizações de lista de forma assíncrona.
--   **`DiffUtil`**: É uma classe utilitária que calcula a diferença entre duas listas. Ele descobre quais itens foram adicionados, removidos ou alterados, permitindo que o `RecyclerView` anime apenas os itens necessários, em vez de redesenhar a lista inteira.
-
-Juntos, eles automatizam o processo de atualização da lista, tornando seu código mais limpo e performático.
+Em Jetpack Compose não usamos `RecyclerView`, `ListAdapter` ou `DiffUtil`. A renderização e atualização são automáticas via recomposição. Você precisa apenas:
+1. Manter o estado da lista como uma coleção observável.
+2. Fornecer chaves estáveis aos itens (quando necessário).
+3. Atualizar a lista criando nova instância ou alterando o estado.
 
 ---
 
-## Passo 1: O Modelo de Dados (Data Class)
+## Conceitos-Chave
 
-Primeiro, precisamos de um modelo para os dados que vamos exibir. Vamos criar uma classe simples para representar um usuário.
+- `LazyColumn`: Equivalente moderno ao RecyclerView para listas verticais.
+- `items()`: Emite cada item da lista; aceita `key` para estabilidade.
+- Estado: Use `remember { mutableStateListOf<T>() }` ou `var list by remember { mutableStateOf(listOf<T>()) }`.
+- Diferenças: Compose reconcilia automaticamente o que mudou; chaves ajudam a preservar identidade visual.
+- Animações: Use `Modifier.animateItemPlacement()` (opcional) para animações de reposicionamento.
 
-**`User.kt`**
+---
+
+## Passo 1: Modelo de Dados
+
+`User.kt`
 ```kotlin
-// Define uma classe de dados para representar um usuário.
-// O 'data class' em Kotlin gera automaticamente métodos como equals(), hashCode() e toString().
-// 'id' é um identificador único para cada usuário.
-// 'name' é o nome do usuário.
-// 'avatarUrl' é a URL para a imagem do avatar do usuário.
 data class User(
     val id: Int,
     val name: String,
@@ -34,125 +30,69 @@ data class User(
 
 ---
 
-## Passo 2: O Layout do Item da Lista
+## Passo 2: Composable do Item
 
-Agora, vamos criar o layout XML para um único item da nossa lista.
-
-**`item_user.xml`**
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Usamos um LinearLayout horizontal para alinhar a imagem e o texto lado a lado. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="16dp"
-    android:gravity="center_vertical">
-
-    <!-- ImageView para exibir o avatar do usuário. -->
-    <ImageView
-        android:id="@+id/ivAvatar"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        tools:src="@mipmap/ic_launcher_round" />
-
-    <!-- TextView para exibir o nome do usuário. -->
-    <TextView
-        android:id="@+id/tvName"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:textSize="16sp"
-        android:textColor="@android:color/black"
-        tools:text="Nome do Usuário" />
-
-</LinearLayout>
-```
-
----
-
-## Passo 3: Implementando o `DiffUtil.ItemCallback`
-
-O `DiffUtil` precisa saber como comparar nossos objetos `User`. Para isso, criamos uma classe que estende `DiffUtil.ItemCallback`.
-
-**`UserDiffCallback.kt`**
 ```kotlin
-import androidx.recyclerview.widget.DiffUtil
-import com.example.myapp.User // Importe sua classe User
-
-// Esta classe ajuda o ListAdapter a entender como verificar as diferenças na lista.
-class UserDiffCallback : DiffUtil.ItemCallback<User>() {
-
-    // Este método verifica se dois itens representam o mesmo objeto.
-    // Geralmente, comparamos os IDs únicos dos itens.
-    override fun areItemsTheSame(oldItem: User, newItem: User): Boolean {
-        return oldItem.id == newItem.id
-    }
-
-    // Este método verifica se o conteúdo de dois itens é o mesmo.
-    // É chamado apenas se areItemsTheSame() retornar true.
-    // O Kotlin data class gera o método equals() que compara todas as propriedades,
-    // então podemos simplesmente usar '==' aqui.
-    override fun areContentsTheSame(oldItem: User, newItem: User): Boolean {
-        return oldItem == newItem
+@Composable
+fun UserItem(
+    user: User,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Exemplo simples sem carregamento real de imagem
+        Image(
+            painter = painterResource(id = R.mipmap.ic_launcher_round),
+            contentDescription = "Avatar",
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            text = user.name,
+            style = MaterialTheme.typography.bodyLarge
+        )
     }
 }
 ```
 
+Para carregar imagens remotas, use Coil:
+```kotlin
+// implementation("io.coil-kt:coil-compose:<versao>")
+Image(
+    painter = rememberAsyncImagePainter(user.avatarUrl),
+    contentDescription = null,
+    modifier = Modifier.size(48.dp).clip(CircleShape)
+)
+```
+
 ---
 
-## Passo 4: Criando o `ListAdapter`
+## Passo 3: Lista com LazyColumn
 
-Agora, vamos criar nosso Adapter. Ele herdará de `ListAdapter` em vez do tradicional `RecyclerView.Adapter`.
-
-**`UserAdapter.kt`**
 ```kotlin
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.TextView
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.example.myapp.R // Importe seus recursos
-import com.example.myapp.User // Importe sua classe User
-
-// O Adapter herda de ListAdapter, passando nosso modelo (User) e o ViewHolder.
-// O construtor do ListAdapter requer uma instância do nosso DiffUtil.ItemCallback.
-class UserAdapter : ListAdapter<User, UserAdapter.UserViewHolder>(UserDiffCallback()) {
-
-    // Este método é chamado para criar uma nova ViewHolder.
-    // Ele "infla" (cria) a view do item a partir do XML.
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
-        // Cria a view a partir do layout item_user.xml.
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_user, parent, false)
-        return UserViewHolder(view)
-    }
-
-    // Este método é chamado para vincular (associar) os dados de um item à sua view.
-    override fun onBindViewHolder(holder: UserViewHolder, position: Int) {
-        // Pega o item da lista na posição atual.
-        val user = getItem(position)
-        // Chama o método bind do ViewHolder para configurar a view com os dados do usuário.
-        holder.bind(user)
-    }
-
-    // ViewHolder é uma classe interna que armazena as referências das views de um item.
-    // Isso evita chamadas repetidas a findViewById(), melhorando a performance.
-    class UserViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        // Referências para as views dentro do item_user.xml.
-        private val tvName: TextView = itemView.findViewById(R.id.tvName)
-        private val ivAvatar: ImageView = itemView.findViewById(R.id.ivAvatar)
-
-        // Método para vincular os dados do objeto User às views.
-        fun bind(user: User) {
-            tvName.text = user.name
-            // Em um app real, você usaria uma biblioteca como Glide ou Coil para carregar a imagem da URL.
-            // Ex: Glide.with(itemView.context).load(user.avatarUrl).into(ivAvatar)
-            // Para simplificar, vamos apenas usar um placeholder.
-            ivAvatar.setImageResource(R.mipmap.ic_launcher_round)
+@Composable
+fun UserList(
+    users: List<User>,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize()
+    ) {
+        items(
+            items = users,
+            key = { it.id } // Preserva identidade
+        ) { user ->
+            UserItem(
+                user = user,
+                modifier = Modifier.animateItemPlacement()
+            )
+            Divider()
         }
     }
 }
@@ -160,139 +100,208 @@ class UserAdapter : ListAdapter<User, UserAdapter.UserViewHolder>(UserDiffCallba
 
 ---
 
-## Passo 5: Configurando o `RecyclerView` na Activity/Fragment
+## Passo 4: Tela Integrando Estado
 
-Finalmente, vamos juntar tudo na nossa Activity ou Fragment.
+```kotlin
+@Composable
+fun UserScreen() {
+    // Estado inicial
+    var users by remember {
+        mutableStateOf(
+            listOf(
+                User(1, "Ana", "url_avatar_1"),
+                User(2, "Bruno", "url_avatar_2"),
+                User(3, "Carlos", "url_avatar_3")
+            )
+        )
+    }
 
-**`activity_main.xml`**
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    // Simula atualização após 3 segundos
+    LaunchedEffect(Unit) {
+        delay(3000)
+        users = listOf(
+            User(1, "Ana Silva", "url_avatar_1"), // Alterado
+            User(3, "Carlos", "url_avatar_3"),    // Reposicionado
+            User(4, "Daniela", "url_avatar_4")    // Novo
+            // Removido: id 2
+        )
+    }
 
-    <!-- O componente RecyclerView que ocupará a tela inteira. -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        tools:listitem="@layout/item_user" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+    UserList(users = users)
+}
 ```
 
-**`MainActivity.kt`**
+---
+
+## Activity com Compose
+
+`MainActivity.kt`
 ```kotlin
-import androidx.appcompat.app.AppCompatActivity
-import android.os.Bundle
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.example.myapp.R
-import com.example.myapp.User
-import com.example.myapp.UserAdapter
-
-class MainActivity : AppCompatActivity() {
-
-    // Declaração tardia do adapter. Ele será inicializado em onCreate.
-    private lateinit var userAdapter: UserAdapter
-
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        // Encontra o RecyclerView no layout.
-        val recyclerView: RecyclerView = findViewById(R.id.recyclerView)
-
-        // Instancia o nosso adapter.
-        userAdapter = UserAdapter()
-
-        // Configura o RecyclerView.
-        recyclerView.apply {
-            // Define o LayoutManager, que posiciona os itens (vertical, horizontal, grid).
-            layoutManager = LinearLayoutManager(this@MainActivity)
-            // Define o adapter para o RecyclerView.
-            adapter = userAdapter
+        setContent {
+            MaterialTheme {
+                UserScreen()
+            }
         }
-
-        // Cria uma lista inicial de usuários.
-        val initialUsers = listOf(
-            User(1, "Ana", "url_avatar_1"),
-            User(2, "Bruno", "url_avatar_2"),
-            User(3, "Carlos", "url_avatar_3")
-        )
-
-        // Envia a lista inicial para o adapter.
-        // O ListAdapter calculará as diferenças (nenhuma, neste caso) e exibirá a lista.
-        userAdapter.submitList(initialUsers)
-
-        // Exemplo de como atualizar a lista (ex: após 3 segundos).
-        // Em um app real, isso viria de uma API, banco de dados, etc.
-        recyclerView.postDelayed({
-            val updatedUsers = listOf(
-                User(1, "Ana Silva", "url_avatar_1"), // Conteúdo alterado
-                User(3, "Carlos", "url_avatar_3"),    // Posição alterada
-                User(4, "Daniela", "url_avatar_4")    // Novo item
-                // O item com id 2 (Bruno) foi removido.
-            )
-            // Envia a nova lista. O ListAdapter e o DiffUtil farão todo o trabalho pesado!
-            // Eles vão detectar as mudanças e animar apenas o que for necessário.
-            userAdapter.submitList(updatedUsers)
-        }, 3000)
     }
 }
 ```
 
-## Resumo das Vantagens
+---
 
-1.  **Código Simples**: Você não precisa mais chamar `notifyDataSetChanged()`, `notifyItemInserted()`, etc. Apenas envie a nova lista com `submitList()`.
-2.  **Performance**: O `DiffUtil` executa os cálculos de diferença em uma thread de segundo plano, evitando que a UI trave, mesmo com listas grandes.
-3.  **Animações Automáticas**: O `RecyclerView` recebe as operações exatas de mudança (adição, remoção, alteração) e aplica as animações padrão de forma suave e bonita.
-4.  **Menos Bugs**: Automatizar as atualizações da lista reduz a chance de erros comuns, como `IndexOutOfBoundsException`, que podem ocorrer com a manipulação manual das notificações do adapter.
+## Vantagens em Compose
+
+1. Sem Adapter ou DiffUtil manual.
+2. Menos boilerplate, tudo é função.
+3. Atualizações reativas simples via mudança de estado.
+4. Chaves mantêm estabilidade e evitam recriações desnecessárias.
+5. Fácil adicionar animações e gestos.
 
 ---
 
 ## Exercício Prático: Lista de Tarefas Interativa
 
-**Objetivo:** Aplicar os conceitos de `ListAdapter` e `DiffUtil` para criar uma lista de tarefas simples onde o usuário pode adicionar, remover e marcar tarefas como concluídas.
+Objetivo: Criar lista de tarefas com adicionar, remover e marcar concluída.
 
-**Passos:**
+### 1. Modelo
+```kotlin
+data class Task(
+    val id: Long,
+    val title: String,
+    val isCompleted: Boolean
+)
+```
 
-1.  **Modelo de Dados:**
-    *   Crie uma `data class` chamada `Task` com os seguintes campos:
-        *   `id: Long` (use `System.currentTimeMillis()` para um ID simples e único)
-        *   `title: String`
-        *   `isCompleted: Boolean`
+### 2. Item (`TaskItem`)
+```kotlin
+@Composable
+fun TaskItem(
+    task: Task,
+    onToggle: (Task) -> Unit,
+    onDelete: (Task) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = task.isCompleted,
+            onCheckedChange = { onToggle(task) }
+        )
+        Text(
+            text = task.title,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 8.dp),
+            style = if (task.isCompleted)
+                MaterialTheme.typography.bodyLarge.copy(textDecoration = TextDecoration.LineThrough)
+            else MaterialTheme.typography.bodyLarge
+        )
+        IconButton(onClick = { onDelete(task) }) {
+            Icon(Icons.Default.Delete, contentDescription = "Remover")
+        }
+    }
+}
+```
 
-2.  **Layout do Item (`item_task.xml`):**
-    *   Crie um layout para o item da lista que contenha:
-        *   Um `CheckBox` para marcar a tarefa como concluída.
-        *   Um `TextView` para exibir o título da tarefa.
-        *   Um `ImageButton` com um ícone de lixeira para remover a tarefa.
+### 3. Lista
+```kotlin
+@Composable
+fun TaskList(
+    tasks: List<Task>,
+    onToggle: (Task) -> Unit,
+    onDelete: (Task) -> Unit
+) {
+    LazyColumn {
+        items(tasks, key = { it.id }) { task ->
+            TaskItem(
+                task = task,
+                onToggle = onToggle,
+                onDelete = onDelete,
+                modifier = Modifier.animateItemPlacement()
+            )
+            Divider()
+        }
+    }
+}
+```
 
-3.  **DiffUtil Callback:**
-    *   Implemente um `DiffUtil.ItemCallback<Task>` para comparar os itens da tarefa.
+### 4. Tela Completa
+```kotlin
+@Composable
+fun TaskScreen() {
+    var tasks by remember { mutableStateOf(listOf<Task>()) }
+    var input by remember { mutableStateOf("") }
 
-4.  **Adapter (`TaskAdapter.kt`):**
-    *   Crie um `TaskAdapter` que herde de `ListAdapter<Task, ...>`.
-    *   No `ViewHolder`, configure os listeners de clique para o `CheckBox` e o `ImageButton`.
-    *   Para comunicar os cliques de volta para a Activity/Fragment, defina funções lambda no construtor do adapter. Por exemplo: `class TaskAdapter(val onTaskClicked: (Task) -> Unit, val onDeleteClicked: (Task) -> Unit)`.
-    *   Chame essas lambdas de dentro dos listeners no `ViewHolder`.
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row {
+            TextField(
+                value = input,
+                onValueChange = { input = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Nova tarefa") }
+            )
+            Spacer(Modifier.width(8.dp))
+            Button(
+                onClick = {
+                    if (input.isNotBlank()) {
+                        tasks = tasks + Task(
+                            id = System.currentTimeMillis(),
+                            title = input.trim(),
+                            isCompleted = false
+                        )
+                        input = ""
+                    }
+                }
+            ) { Text("Adicionar") }
+        }
+        Spacer(Modifier.height(16.dp))
+        TaskList(
+            tasks = tasks,
+            onToggle = { t ->
+                tasks = tasks.map {
+                    if (it.id == t.id) it.copy(isCompleted = !it.isCompleted) else it
+                }
+            },
+            onDelete = { t ->
+                tasks = tasks.filter { it.id != t.id }
+            }
+        )
+    }
+}
+```
 
-5.  **Interface do Usuário (`activity_main.xml`):**
-    *   Além do `RecyclerView`, adicione um `EditText` e um `Button` ("Adicionar") ao layout da sua activity para que o usuário possa inserir novas tarefas.
+### 5. Uso na Activity
+```kotlin
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MaterialTheme {
+                TaskScreen()
+            }
+        }
+    }
+}
+```
 
-6.  **Lógica na Activity/Fragment:**
-    *   Mantenha uma lista mutável de tarefas (ex: `private var taskList = mutableListOf<Task>()`).
-    *   Configure o `RecyclerView` e instancie seu `TaskAdapter`, passando as implementações das lambdas de clique.
-    *   **Adicionar Tarefa:** No listener de clique do botão "Adicionar", crie um novo objeto `Task`, adicione-o à `taskList`, e então chame `adapter.submitList(taskList.toList())`. Usar `.toList()` cria uma nova lista, o que é crucial para que o `DiffUtil` detecte a mudança.
-    *   **Marcar como Concluída:** Na lambda `onTaskClicked`, encontre a tarefa na `taskList`, crie uma cópia dela com o status `isCompleted` invertido, substitua a tarefa antiga pela nova na lista e chame `submitList`.
-    *   **Remover Tarefa:** Na lambda `onDeleteClicked`, remova a tarefa da `taskList` e chame `submitList`.
+---
 
-Ao final, você terá uma aplicação funcional que demonstra o poder e a simplicidade do `ListAdapter`, com animações automáticas para todas as operações na lista.
+## Dicas Finais
+
+- Prefira `immutable` + recriar lista (ex: `tasks = tasks + novoItem`) para clareza.
+- Use chaves (`key = { it.id }`) ao animar ou preservar estado interno.
+- Para listas grandes, otimize usando tipos estáveis (`@Stable`) se necessário.
+- Combine com `LazyColumn` + `rememberLazyListState()` para scroll controlado.
+- Animações extras: `AnimatedVisibility`, `animateContentSize()`, `crossfade()`.
+
+---
+
+## Resumo
+
+Compose elimina a necessidade de Adapter e DiffUtil: o estado dirige a UI. Atualize a lista, recomposição cuida do resto. Menos código, mais legibilidade, fácil ampliar com eventos, animações e side-effects.

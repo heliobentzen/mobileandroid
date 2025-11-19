@@ -11,50 +11,47 @@ Existem dois tipos principais de intents:
 
 ## Exemplo 1: Intent Explícita Simples
 
-A forma mais comum de usar uma `Intent` é para iniciar uma nova `Activity`.
+A forma mais comum de usar uma `Intent` é para iniciar uma nova `Activity`, mas com o advento do Jetpack Compose, a navegação interna pode ser feita de forma mais direta e eficiente.
 
 **Cenário**: Navegar da `MainActivity` para uma `DetalhesActivity`.
 
 **1. Código na `MainActivity.kt`**
 
 ```kotlin
-import android.content.Intent
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import com.suaempresa.seuapp.databinding.ActivityMainBinding // Usando View Binding
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 
-class MainActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityMainBinding
-
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        binding.botaoIrParaDetalhes.setOnClickListener {
-            // 1. Criar a Intent explícita, especificando o contexto (this)
-            //    e a classe da Activity de destino.
-            val intent = Intent(this, DetalhesActivity::class.java)
-
-            // 2. Iniciar a nova Activity.
-            startActivity(intent)
+        setContent {
+            val navController = rememberNavController()
+            NavHost(navController, startDestination = "main") {
+                composable("main") { MainScreen(navController) }
+                composable("detalhes") { DetalhesScreen() }
+            }
         }
     }
 }
-```
 
-**2. `DetalhesActivity.kt` (Apenas a estrutura básica)**
-
-```kotlin
-import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-
-class DetalhesActivity : AppCompatActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_detalhes)
+@Composable
+fun MainScreen(navController: NavController) {
+    Button(onClick = { navController.navigate("detalhes") }) {
+        Text("Ir para Detalhes")
     }
+}
+
+@Composable
+fun DetalhesScreen() {
+    Text("Tela de Detalhes")
 }
 ```
 
@@ -69,40 +66,19 @@ Frequentemente, você precisa passar dados para a próxima tela.
 **1. Código na `MainActivity.kt` (modificado)**
 
 ```kotlin
-// ...
-binding.botaoIrParaDetalhes.setOnClickListener {
+@Composable
+fun MainScreen(navController: NavController) {
     val nomeUsuario = "Maria"
-    val intent = Intent(this, DetalhesActivity::class.java)
-
-    // Adiciona dados extras à Intent usando um par chave-valor.
-    // É uma boa prática definir as chaves como constantes.
-    intent.putExtra("EXTRA_NOME_USUARIO", nomeUsuario)
-    intent.putExtra("EXTRA_ID_USUARIO", 123)
-
-    startActivity(intent)
-}
-// ...
-```
-
-**2. Código na `DetalhesActivity.kt` (modificado para receber os dados)**
-
-```kotlin
-import android.os.Bundle
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-
-class DetalhesActivity : AppCompatActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_detalhes)
-
-        // Recupera os dados da Intent que iniciou esta Activity.
-        val nome = intent.getStringExtra("EXTRA_NOME_USUARIO")
-        val id = intent.getIntExtra("EXTRA_ID_USUARIO", -1) // O segundo parâmetro é um valor padrão.
-
-        val textViewBoasVindas: TextView = findViewById(R.id.textViewBoasVindas)
-        textViewBoasVindas.text = "Olá, $nome! (ID: $id)"
+    Button(onClick = { 
+        navController.navigate("detalhes?nome=$nomeUsuario") 
+    }) {
+        Text("Ir para Detalhes")
     }
+}
+
+@Composable
+fun DetalhesScreen(nome: String?) {
+    Text("Olá, $nome!")
 }
 ```
 
@@ -153,35 +129,20 @@ import android.app.Activity
 import android.content.Intent
 import androidx.activity.result.contract.ActivityResultContracts
 
-class MainActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityMainBinding
+class MainActivity : ComponentActivity() {
 
     // 1. Registre o "contrato" para iniciar uma activity e receber seu resultado.
-    //    Isso deve ser feito no nível da classe, antes de onCreate().
     private val seletorDeItemLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        // 4. O resultado chega aqui quando a SelecaoActivity é fechada.
         if (result.resultCode == Activity.RESULT_OK) {
             val data: Intent? = result.data
             val itemSelecionado = data?.getStringExtra("EXTRA_ITEM_SELECIONADO")
-            binding.textViewResultado.text = "Item escolhido: $itemSelecionado"
+            // Atualize a UI com o item selecionado
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        binding.botaoEscolherItem.setOnClickListener {
-            // 2. Crie a intent para a activity de seleção.
-            val intent = Intent(this, SelecaoActivity::class.java)
-            // 3. Inicie a activity usando o launcher que você registrou.
-            seletorDeItemLauncher.launch(intent)
-        }
-    }
+    // Resto do código...
 }
 ```
 
@@ -191,32 +152,20 @@ class MainActivity : AppCompatActivity() {
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import com.suaempresa.seuapp.databinding.ActivitySelecaoBinding
+import androidx.activity.ComponentActivity
 
-class SelecaoActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivitySelecaoBinding
+class SelecaoActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivitySelecaoBinding.inflate(layoutInflater)
-        setContentView(binding.root)
 
-        binding.botaoConfirmarSelecao.setOnClickListener {
-            val item = "Item 123" // Item que o usuário selecionou
+        // Lógica para selecionar um item...
 
-            // 1. Crie uma Intent vazia para carregar o resultado.
-            val resultIntent = Intent()
-            // 2. Coloque os dados de retorno na Intent.
-            resultIntent.putExtra("EXTRA_ITEM_SELECIONADO", item)
-
-            // 3. Defina o resultado como OK e anexe a Intent com os dados.
-            setResult(Activity.RESULT_OK, resultIntent)
-
-            // 4. Feche esta activity para retornar à anterior.
-            finish()
-        }
+        // Quando o item for selecionado:
+        val resultIntent = Intent()
+        resultIntent.putExtra("EXTRA_ITEM_SELECIONADO", "Item 123")
+        setResult(Activity.RESULT_OK, resultIntent)
+        finish()
     }
 }
 ```

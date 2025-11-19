@@ -1,21 +1,21 @@
-# Introdução ao Android
+# Introdução ao Android com Jetpack Compose
 
-O Android é um sistema operacional móvel desenvolvido pelo Google, amplamente utilizado em smartphones e tablets. Ele oferece uma plataforma aberta para desenvolvedores criarem aplicativos inovadores, utilizando a linguagem de programação Kotlin ou Java.
+O Android é um sistema operacional móvel desenvolvido pelo Google, amplamente utilizado em smartphones e tablets. Ele oferece uma plataforma aberta para desenvolvedores criarem aplicativos inovadores, utilizando a linguagem de programação Kotlin.
 
-## Desenvolvimento no Android Studio
+## Desenvolvimento no Android Studio com Jetpack Compose
 
-O Android Studio é o ambiente de desenvolvimento oficial para criar aplicativos Android. Ele fornece ferramentas integradas para design de interface, depuração, testes e publicação de apps.
+O Android Studio é o ambiente de desenvolvimento oficial para criar aplicativos Android. Com a introdução do Jetpack Compose, a criação de interfaces se tornou mais intuitiva e declarativa.
 
-### Principais recursos do Android Studio:
-- Editor de código inteligente
-- Emulador de dispositivos Android
-- Gerenciamento de dependências
-- Ferramentas de análise de desempenho
+### Principais recursos do Jetpack Compose:
+- UI declarativa
+- Reutilização de componentes
+- Integração com Material Design
+- Ferramentas de pré-visualização
 
 ---
 
 ## 1. Visão Rápida da Estrutura de um Projeto
-Quando você cria um projeto (Empty Activity), o Android Studio gera pastas e arquivos. Entenda apenas o essencial agora:
+Quando você cria um projeto (Empty Compose Activity), o Android Studio gera pastas e arquivos. Entenda apenas o essencial agora:
 
 | Caminho / Arquivo | Para que serve (versão simples) |
 |-------------------|---------------------------------|
@@ -23,9 +23,8 @@ Quando você cria um projeto (Empty Activity), o Android Studio gera pastas e ar
 | `gradle/libs.versions.toml` | Onde ficam versões centralizadas (Gradle moderno) |
 | `app/build.gradle.kts` | Configura app: id, sdk, dependências |
 | `app/src/main/AndroidManifest.xml` | Declara Activity inicial, permissões |
-| `app/src/main/res/layout/` | Layouts XML das telas |
-| `app/src/main/res/values/` | Strings, cores, dimens, temas |
-| `app/src/main/java/` ou `kotlin/` | Código Kotlin (Activities, etc.) |
+| `app/src/main/res/` | Recursos como imagens e strings |
+| `app/src/main/java/` ou `kotlin/` | Código Kotlin (Composables, etc.) |
 
 Memorize: Manifest descreve, `res/` guarda recursos, `build.gradle.kts` configura, código fica em `java/` ou `kotlin/`.
 
@@ -41,12 +40,11 @@ Exemplo mínimo de dependências usando catálogo:
 [versions]
 agp = "8.5.1"
 kotlin = "2.0.0"
-appcompat = "1.7.0"
-material = "1.12.0"
+compose = "1.4.0"
 
 [libraries]
-androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
-google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "compose" }
+androidx-compose-material = { group = "androidx.compose.material", name = "material", version.ref = "compose" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -76,8 +74,8 @@ android {
 }
 
 dependencies {
-    implementation(libs.androidx.appcompat)
-    implementation(libs.google.material)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.material)
 }
 ```
 
@@ -87,10 +85,10 @@ Anote: `namespace` (interno) e `applicationId` (publicado) normalmente iguais no
 
 ## 3. Passo a Passo do Primeiro Projeto
 Ordem recomendada:
-1. Criar projeto (Empty Activity)
+1. Criar projeto (Empty Compose Activity)
 2. Rodar sem alterações para validar ambiente
 3. Olhar Manifest e layout gerado
-4. Alterar texto no XML
+4. Alterar texto no Composable
 5. Adicionar um segundo componente (ex: Button)
 6. Testar emulador + dispositivo físico
 
@@ -105,27 +103,29 @@ Vamos criar um aplicativo simples que exibe "Hello World" na tela para validar t
 ### Passos Detalhados:
 
 1. **Abra o Android Studio** e crie um novo projeto.
-2. Escolha a opção **Empty Activity**.
-3. Abra o arquivo `app/src/main/res/layout/activity_main.xml` e substitua o conteúdo por:
+2. Escolha a opção **Empty Compose Activity**.
+3. Abra o arquivo `app/src/main/java/com/exemplo/app/MainActivity.kt` e substitua o conteúdo por:
 
-    ```xml
-    <TextView
-         android:layout_width="wrap_content"
-         android:layout_height="wrap_content"
-         android:text="Hello World!"
-         android:layout_gravity="center"/>
+    ```kotlin
+    setContent {
+        MaterialTheme {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+                Text("Hello World!", modifier = Modifier.align(Alignment.Center))
+            }
+        }
+    }
     ```
 
 4. Execute o aplicativo (botão Run ▶). Se abrir no emulador, você concluiu o ciclo básico.
 
 ### Explicando o Layout
-Esse `TextView` é um widget simples. A Activity usa `setContentView(R.layout.activity_main)` (gerado automaticamente no template) para inflar esse XML.
+Esse `Text` é um componente simples. A Activity usa `setContent { ... }` para inflar esse Composable.
 
 Próximo passo: adicionar um `Button` e capturar clique no código Kotlin.
 
 ---
 
-Pronto! Você criou seu primeiro app Android com uma mensagem de "Hello World".
+Pronto! Você criou seu primeiro app Android com uma mensagem de "Hello World" usando Jetpack Compose.
 
 ---
 
@@ -150,7 +150,7 @@ android {
 Checklist mental antes de seguir para arquitetura:
 - Sei onde editar dependências
 - Sei diferença namespace vs applicationId
-- Consigo criar e abrir um layout XML
+- Consigo criar e abrir um layout Composable
 - Rodar app em emulador e device físico
 
 ---

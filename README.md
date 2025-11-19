@@ -5,7 +5,7 @@ Este documento é o guia completo para a trilha de Desenvolvimento Mobile Androi
 ---
 
 ## 🎯 Objetivo Geral
-Formar o aluno para entregar um app Android profissional usando a stack estável mais difundida: Activities/Fragments + XML, MVVM + Repository, Room, Retrofit, Hilt, Coroutines/Flow, testes fundamentais e pipeline de release.
+Formar o aluno para entregar um app Android profissional usando a stack estável mais difundida: Jetpack Compose, MVVM + Repository, Room, Retrofit, Hilt, Coroutines/Flow, testes fundamentais e pipeline de release.
 
 ---
 
@@ -15,18 +15,16 @@ Formar o aluno para entregar um app Android profissional usando a stack estável
 - **Kotlin Essencial**: Tipos, null safety, data classes, coleções, funções de extensão e lambdas.
 - **Estrutura de Projeto**: Gradle moderno, namespaces e build variants.
 - **Componentes Android**: Ciclo de vida de Activity/Fragment e uso de Intents.
-- **UI Clássica (XML)**: Layouts com ConstraintLayout e Material Components.
-- **Acesso a Views**: Adoção de ViewBinding em vez de `findViewById`.
+- **UI Moderna (Jetpack Compose)**: Introdução ao Jetpack Compose, `@Composable`, state (`remember`, state hoisting) e theming básico.
 
-**Entrega parcial**: Tela estática simples com navegação básica entre Fragments.
+**Entrega parcial**: Tela estática simples com navegação básica entre Composables.
 
 ### Módulo 2 - Arquitetura MVVM e UI Dinâmica
 - **MVVM**: `ViewModel` + `StateFlow` (`UiState` com `sealed class`) e fluxo unidirecional de dados.
 - **Eventos One-Shot**: `SharedFlow` para navegação/toasts.
-- **Listas**: `RecyclerView` com `ListAdapter` + `DiffUtil`.
+- **Listas**: `LazyColumn` com `ListAdapter` + `DiffUtil`.
 - **Navegação**: `Navigation Component` + `Safe Args` para navegação segura e testável.
 - **Acessibilidade**: `contentDescription`, foco, labels e strings externalizadas.
-
 
 **Entrega parcial**: App com lista de dados locais (mock) e tela de detalhes, usando a arquitetura MVVM.
 
@@ -36,12 +34,9 @@ Formar o aluno para entregar um app Android profissional usando a stack estável
 - **Persistência**: `Room` (Entity, DAO, migrations básicas) e `DataStore` para preferências.
 - **Repository Pattern**: Combinar fontes de dados local e remota (padrão `NetworkBoundResource` simplificado).
 
-
 **Entrega parcial**: App consumindo uma API real, com cache local em Room para funcionamento offline.
 
-### Módulo 4 - Jetpack Compose, Testes e Publicação
-- **Jetpack Compose Básico**: `@Composable`, state (`remember`, state hoisting), recomposition e theming mínimo (Material 3 básico).
-- **Integração Compose ↔ ViewModel**: Conectar `StateFlow` do ViewModel ao estado do Compose.
+### Módulo 4 - Testes e Publicação
 - **Testes Essenciais**: Testes de unidade para `ViewModel`/`UseCases` (MockK/Turbine) e 1–2 testes de UI com Compose.
 - **Publicação Mínima**: Gerar AAB assinado localmente e checklist do Play Console (trilha interna).
 
@@ -51,9 +46,9 @@ Formar o aluno para entregar um app Android profissional usando a stack estável
 | Tecnologia | Uso Principal |
 |------------|---------------|
 | Kotlin | Linguagem |
-| XML + ViewBinding | Camada de UI clássica |
+| Jetpack Compose | Camada de UI moderna |
 | Material Components | Estilos e componentes visuais |
-| RecyclerView / ListAdapter | Listas performáticas |
+| LazyColumn | Listas performáticas |
 | Navigation Component | Navegação declarativa entre telas |
 | Coroutines + Flow | Concorrência e reatividade |
 | Room | Persistência local estruturada |
@@ -63,7 +58,6 @@ Formar o aluno para entregar um app Android profissional usando a stack estável
 | Coil | Carregamento de imagens |
 | JUnit / Mockito / Espresso | Testes |
 | Git + GitHub | Versionamento e colaboração |
-
 
 ---
 
@@ -89,4 +83,4 @@ app/
 
 ---
 
-Opcional / Extensões: Jetpack Compose, Paging 3, WorkManager, Firebase (Auth, Firestore), Crashlytics, Analytics, Compose Multiplatform.
+Opcional / Extensões: Paging 3, WorkManager, Firebase (Auth, Firestore), Crashlytics, Analytics, Compose Multiplatform.
