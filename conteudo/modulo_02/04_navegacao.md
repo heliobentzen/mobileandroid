@@ -45,6 +45,43 @@ dependencies {
 
 ---
 
+## Estrutura de Projeto (Exemplo)
+```
+app/
+  build.gradle.kts
+  src/
+    main/
+      AndroidManifest.xml
+      java/
+        com/example/app/
+          MainActivity.kt              // setContent { AppNavHost() }
+          navigation/
+            AppRoute.kt                // sealed class rotas principais
+            AppNavHost.kt              // NavHost principal
+            login/
+              LoginRoute.kt            // sealed class rotas login
+              LoginNavHost.kt          // NavHost de login (opcional separado)
+          ui/
+            HomeScreen.kt
+            DetailScreen.kt
+            LoginScreen.kt
+            WelcomeScreen.kt
+      res/
+        values/
+          strings.xml
+    androidTest/
+      java/
+        com/example/app/
+          AppNavTest.kt                // teste instrumentado de navegação
+    test/
+      java/
+        com/example/app/
+          AppNavUnitTest.kt            // testes unitários (se usar helpers)
+```
+Observação: Separar navigation/ e ui/ mantém rotas centralizadas e telas desacopladas.
+
+---
+
 ## Rotas Tipadas (Compose)
 ```kotlin
 sealed class AppRoute(val path: String) {
