@@ -48,13 +48,44 @@ if (subtitulo != null) println(subtitulo.length) // smart cast
 
 Uso típico no Android:
 ```kotlin
-val nome = intent.getStringExtra("NOME") ?: "Visitante"
-textView?.text = nome
+val intentData: String? = intent.getStringExtra("data")
+val data = intentData ?: "Valor padrão"
 ```
 
 ---
 
-## 4. Classes, Data Classes, Objetos
+## 4. Coroutines e Concorrência
+
+Kotlin simplifica tarefas assíncronas com `coroutines`:
+
+```kotlin
+import kotlinx.coroutines.*
+
+fun main() = runBlocking {
+    launch {
+        delay(1000L)
+        println("Mundo!")
+    }
+    println("Olá")
+}
+```
+
+No Android, use `viewModelScope` para tarefas seguras:
+
+```kotlin
+class MainViewModel : ViewModel() {
+    fun carregarDados() {
+        viewModelScope.launch {
+            val dados = repositorio.buscarDados()
+            _estado.value = UiState.Sucesso(dados)
+        }
+    }
+}
+```
+
+---
+
+## 5. Classes, Data Classes, Objetos
 
 ```kotlin
 class Pessoa(val nome: String, var idade: Int) {
@@ -70,7 +101,7 @@ Se o objetivo é “guardar dados”, use data class. Para um único ponto globa
 
 ---
 
-## 5. Coleções + Lambdas
+## 6. Coleções + Lambdas
 
 ```kotlin
 val nums = listOf(1,2,3)
@@ -97,7 +128,7 @@ val idade = p.run { idade }
 
 ---
 
-## 6. Extensões (turbinando APIs)
+## 7. Extensões (turbinando APIs)
 
 Adicionar comportamento sem herdar:
 ```kotlin
@@ -134,7 +165,7 @@ Use método real na classe se quiser polimorfismo dinâmico.
 
 ---
 
-## 7. Sealed Classes, Smart Casts, Pattern-Like
+## 8. Sealed Classes, Smart Casts, Pattern-Like
 
 Modelar estados finitos:
 ```kotlin
@@ -159,17 +190,26 @@ fun tamanho(x: Any) {
 
 ---
 
-## 8. Exercícios
+## 9. Exercícios Práticos
 
-1. Função que recebe 3 Int e retorna o maior; depois use para reduzir uma lista.
-2. Data class Produto(nome, preco, categoria) + método aplicarDesconto(percent).
-3. Filtrar nomes que começam com A/a e têm > 3 chars; map para maiúsculas.
-4. Extensão String: inverter e trocar vogais por *.
-5. Sealed ResultadoOperacao: Sucesso(Int), Falha(String), Pendente; imprimir mensagem via when.
+1. **Null Safety**:
+   - Crie uma variável que pode ser nula e use `safe call` e `Elvis operator` para manipulá-la.
+   - Exemplo: Receba um nome de usuário e exiba "Olá, [nome]" ou "Olá, visitante" se for nulo.
+
+2. **Funções e Expressões**:
+   - Escreva uma função que receba dois números e retorne o maior deles.
+   - Transforme a função em uma expressão única.
+
+3. **Coroutines**:
+   - Implemente uma função que simule uma chamada de rede com `delay` e exiba o resultado após 2 segundos.
+
+4. **Desafio**:
+   - Crie uma classe `Usuario` com propriedades `nome` e `idade`.
+   - Escreva uma função que receba uma lista de usuários e retorne apenas os maiores de idade.
 
 ---
 
-## 9. Cheatsheet Relâmpago
+## 10. Cheatsheet Relâmpago
 
 ```text
 map          transforma
@@ -189,7 +229,7 @@ chunked(n)   blocos
 
 ---
 
-## 10. Mentalidade Kotlin
+## 11. Mentalidade Kotlin
 
 - Prefira val; mude para var só se necessário.
 - Trate null cedo.

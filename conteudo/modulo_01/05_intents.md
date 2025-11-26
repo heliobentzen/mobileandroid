@@ -18,154 +18,76 @@ A forma mais comum de usar uma `Intent` é para iniciar uma nova `Activity`, mas
 **1. Código na `MainActivity.kt`**
 
 ```kotlin
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.navigation.NavController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
+val intent = Intent(this, DetalhesActivity::class.java)
+intent.putExtra("chave", "valor")
+startActivity(intent)
+```
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            val navController = rememberNavController()
-            NavHost(navController, startDestination = "main") {
-                composable("main") { MainScreen(navController) }
-                composable("detalhes") { DetalhesScreen() }
-            }
-        }
-    }
-}
+**2. Código na `DetalhesActivity.kt`**
 
-@Composable
-fun MainScreen(navController: NavController) {
-    Button(onClick = { navController.navigate("detalhes") }) {
-        Text("Ir para Detalhes")
-    }
-}
-
-@Composable
-fun DetalhesScreen() {
-    Text("Tela de Detalhes")
-}
+```kotlin
+val valor = intent.getStringExtra("chave")
 ```
 
 ---
 
-## Exemplo 2: Passando Dados com uma Intent Explícita
+## Exemplo 2: Intent Implícita
 
-Frequentemente, você precisa passar dados para a próxima tela.
-
-**Cenário**: Enviar um nome de usuário da `MainActivity` para a `DetalhesActivity`.
-
-**1. Código na `MainActivity.kt` (modificado)**
+**Cenário**: Abrir um navegador para uma URL.
 
 ```kotlin
-@Composable
-fun MainScreen(navController: NavController) {
-    val nomeUsuario = "Maria"
-    Button(onClick = { 
-        navController.navigate("detalhes?nome=$nomeUsuario") 
-    }) {
-        Text("Ir para Detalhes")
-    }
-}
+val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
+startActivity(intent)
+```
 
-@Composable
-fun DetalhesScreen(nome: String?) {
-    Text("Olá, $nome!")
-}
+**Cenário**: Compartilhar texto com outros aplicativos.
+
+```kotlin
+val intent = Intent(Intent.ACTION_SEND)
+intent.type = "text/plain"
+intent.putExtra(Intent.EXTRA_TEXT, "Texto para compartilhar")
+startActivity(Intent.createChooser(intent, "Compartilhar via"))
 ```
 
 ---
 
-## Exemplo 3: Intent Implícita Comum
+## Boas Práticas
 
-Use intents implícitas para delegar tarefas a outros aplicativos.
-
-**Cenário**: Abrir uma página web e discar um número de telefone.
+1. **Verificar se há aplicativos disponíveis**:
+   - Antes de usar intents implícitas, verifique se há aplicativos capazes de lidar com a ação.
 
 ```kotlin
-// Em qualquer Activity ou Fragment
-
-// Para abrir um navegador com uma URL
-fun abrirPaginaWeb(url: String) {
-    val uri = Uri.parse(url)
-    val intent = Intent(Intent.ACTION_VIEW, uri)
+val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
+if (intent.resolveActivity(packageManager) != null) {
     startActivity(intent)
+} else {
+    Log.e("Intent", "Nenhum aplicativo disponível para abrir a URL")
 }
-
-// Para abrir o discador com um número
-fun discarNumero(telefone: String) {
-    val uri = Uri.parse("tel:$telefone")
-    val intent = Intent(Intent.ACTION_DIAL, uri)
-    startActivity(intent)
-}
-
-// Exemplo de uso
-abrirPaginaWeb("https://github.com")
-discarNumero("999998888")
 ```
 
-O sistema Android procura por aplicativos que possam manipular a ação `ACTION_VIEW` para um URI web ou `ACTION_DIAL` para um URI de telefone e os inicia.
+2. **Evitar vazamento de dados sensíveis**:
+   - Ao usar intents, tenha cuidado ao compartilhar dados sensíveis.
+
+3. **Usar constantes para chaves**:
+   - Defina constantes para as chaves usadas em `putExtra` para evitar erros de digitação.
+
+```kotlin
+companion object {
+    const val EXTRA_CHAVE = "chave"
+}
+```
 
 ---
 
-## Exemplo 4: Obtendo um Resultado de uma Activity (Forma Moderna)
+## Exercícios Práticos
 
-A antiga API `startActivityForResult()` foi depreciada. A abordagem moderna usa `ActivityResultContracts`.
+1. **Intent Explícita**:
+   - Crie uma `Activity` que receba um nome via `Intent` e exiba uma saudação personalizada.
 
-**Cenário**: A `MainActivity` inicia uma `SelecaoActivity` para que o usuário escolha um item. O item escolhido é retornado para a `MainActivity`.
+2. **Intent Implícita**:
+   - Implemente um botão que abra o aplicativo de e-mail para enviar uma mensagem.
 
-**1. Código na `MainActivity.kt`**
+3. **Desafio**:
+   - Crie um aplicativo com duas telas. Na primeira, o usuário insere um texto. Na segunda, o texto é exibido e pode ser compartilhado com outros aplicativos.
 
-```kotlin
-import android.app.Activity
-import android.content.Intent
-import androidx.activity.result.contract.ActivityResultContracts
-
-class MainActivity : ComponentActivity() {
-
-    // 1. Registre o "contrato" para iniciar uma activity e receber seu resultado.
-    private val seletorDeItemLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val data: Intent? = result.data
-            val itemSelecionado = data?.getStringExtra("EXTRA_ITEM_SELECIONADO")
-            // Atualize a UI com o item selecionado
-        }
-    }
-
-    // Resto do código...
-}
-```
-
-**2. Código na `SelecaoActivity.kt`**
-
-```kotlin
-import android.app.Activity
-import android.content.Intent
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-
-class SelecaoActivity : ComponentActivity() {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // Lógica para selecionar um item...
-
-        // Quando o item for selecionado:
-        val resultIntent = Intent()
-        resultIntent.putExtra("EXTRA_ITEM_SELECIONADO", "Item 123")
-        setResult(Activity.RESULT_OK, resultIntent)
-        finish()
-    }
-}
-```
+---

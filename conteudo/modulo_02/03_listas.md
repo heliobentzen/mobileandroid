@@ -9,11 +9,11 @@ Em Jetpack Compose não usamos `RecyclerView`, `ListAdapter` ou `DiffUtil`. A re
 
 ## Conceitos-Chave
 
-- `LazyColumn`: Equivalente moderno ao RecyclerView para listas verticais.
-- `items()`: Emite cada item da lista; aceita `key` para estabilidade.
-- Estado: Use `remember { mutableStateListOf<T>() }` ou `var list by remember { mutableStateOf(listOf<T>()) }`.
-- Diferenças: Compose reconcilia automaticamente o que mudou; chaves ajudam a preservar identidade visual.
-- Animações: Use `Modifier.animateItemPlacement()` (opcional) para animações de reposicionamento.
+- **`LazyColumn`**: Equivalente moderno ao RecyclerView para listas verticais.
+- **`items()`**: Emite cada item da lista; aceita `key` para estabilidade.
+- **Estado**: Use `remember { mutableStateListOf<T>() }` ou `var list by remember { mutableStateOf(listOf<T>()) }`.
+- **Diferenças**: Compose reconcilia automaticamente o que mudou; chaves ajudam a preservar identidade visual.
+- **Animações**: Use `Modifier.animateItemPlacement()` (opcional) para animações de reposicionamento.
 
 ---
 
@@ -48,260 +48,80 @@ fun UserItem(
         Image(
             painter = painterResource(id = R.mipmap.ic_launcher_round),
             contentDescription = "Avatar",
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
+            modifier = Modifier.size(40.dp)
         )
-        Spacer(Modifier.width(16.dp))
-        Text(
-            text = user.name,
-            style = MaterialTheme.typography.bodyLarge
-        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = user.name)
     }
 }
 ```
 
-Para carregar imagens remotas, use Coil:
-```kotlin
-// implementation("io.coil-kt:coil-compose:<versao>")
-Image(
-    painter = rememberAsyncImagePainter(user.avatarUrl),
-    contentDescription = null,
-    modifier = Modifier.size(48.dp).clip(CircleShape)
-)
-```
-
 ---
 
-## Passo 3: Lista com LazyColumn
+## Passo 3: LazyColumn com Estado
 
 ```kotlin
 @Composable
-fun UserList(
-    users: List<User>,
-    modifier: Modifier = Modifier
-) {
-    LazyColumn(
-        modifier = modifier.fillMaxSize()
-    ) {
-        items(
-            items = users,
-            key = { it.id } // Preserva identidade
-        ) { user ->
-            UserItem(
-                user = user,
-                modifier = Modifier.animateItemPlacement()
-            )
-            Divider()
-        }
-    }
-}
-```
-
----
-
-## Passo 4: Tela Integrando Estado
-
-```kotlin
-@Composable
-fun UserScreen() {
-    // Estado inicial
-    var users by remember {
-        mutableStateOf(
-            listOf(
-                User(1, "Ana", "url_avatar_1"),
-                User(2, "Bruno", "url_avatar_2"),
-                User(3, "Carlos", "url_avatar_3")
-            )
-        )
-    }
-
-    // Simula atualização após 3 segundos
-    LaunchedEffect(Unit) {
-        delay(3000)
-        users = listOf(
-            User(1, "Ana Silva", "url_avatar_1"), // Alterado
-            User(3, "Carlos", "url_avatar_3"),    // Reposicionado
-            User(4, "Daniela", "url_avatar_4")    // Novo
-            // Removido: id 2
-        )
-    }
-
-    UserList(users = users)
-}
-```
-
----
-
-## Activity com Compose
-
-`MainActivity.kt`
-```kotlin
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme {
-                UserScreen()
-            }
-        }
-    }
-}
-```
-
----
-
-## Vantagens em Compose
-
-1. Sem Adapter ou DiffUtil manual.
-2. Menos boilerplate, tudo é função.
-3. Atualizações reativas simples via mudança de estado.
-4. Chaves mantêm estabilidade e evitam recriações desnecessárias.
-5. Fácil adicionar animações e gestos.
-
----
-
-## Exercício Prático: Lista de Tarefas Interativa
-
-Objetivo: Criar lista de tarefas com adicionar, remover e marcar concluída.
-
-### 1. Modelo
-```kotlin
-data class Task(
-    val id: Long,
-    val title: String,
-    val isCompleted: Boolean
-)
-```
-
-### 2. Item (`TaskItem`)
-```kotlin
-@Composable
-fun TaskItem(
-    task: Task,
-    onToggle: (Task) -> Unit,
-    onDelete: (Task) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Checkbox(
-            checked = task.isCompleted,
-            onCheckedChange = { onToggle(task) }
-        )
-        Text(
-            text = task.title,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 8.dp),
-            style = if (task.isCompleted)
-                MaterialTheme.typography.bodyLarge.copy(textDecoration = TextDecoration.LineThrough)
-            else MaterialTheme.typography.bodyLarge
-        )
-        IconButton(onClick = { onDelete(task) }) {
-            Icon(Icons.Default.Delete, contentDescription = "Remover")
-        }
-    }
-}
-```
-
-### 3. Lista
-```kotlin
-@Composable
-fun TaskList(
-    tasks: List<Task>,
-    onToggle: (Task) -> Unit,
-    onDelete: (Task) -> Unit
-) {
+fun UserList(users: List<User>) {
     LazyColumn {
-        items(tasks, key = { it.id }) { task ->
-            TaskItem(
-                task = task,
-                onToggle = onToggle,
-                onDelete = onDelete,
-                modifier = Modifier.animateItemPlacement()
-            )
-            Divider()
+        items(users, key = { it.id }) { user ->
+            UserItem(user = user, modifier = Modifier.animateItemPlacement())
         }
     }
 }
 ```
 
-### 4. Tela Completa
+---
+
+## Passo 4: Animações Avançadas
+
+Adicione animações para inserção e remoção de itens:
+
 ```kotlin
 @Composable
-fun TaskScreen() {
-    var tasks by remember { mutableStateOf(listOf<Task>()) }
-    var input by remember { mutableStateOf("") }
+fun AnimatedUserList() {
+    var users by remember { mutableStateOf(sampleUsers) }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row {
-            TextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Nova tarefa") }
-            )
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    if (input.isNotBlank()) {
-                        tasks = tasks + Task(
-                            id = System.currentTimeMillis(),
-                            title = input.trim(),
-                            isCompleted = false
-                        )
-                        input = ""
-                    }
-                }
-            ) { Text("Adicionar") }
+    LazyColumn {
+        items(users, key = { it.id }) { user ->
+            UserItem(user = user, modifier = Modifier.animateItemPlacement())
         }
-        Spacer(Modifier.height(16.dp))
-        TaskList(
-            tasks = tasks,
-            onToggle = { t ->
-                tasks = tasks.map {
-                    if (it.id == t.id) it.copy(isCompleted = !it.isCompleted) else it
-                }
-            },
-            onDelete = { t ->
-                tasks = tasks.filter { it.id != t.id }
-            }
-        )
     }
-}
-```
 
-### 5. Uso na Activity
-```kotlin
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme {
-                TaskScreen()
-            }
+    Button(onClick = {
+        users = users.toMutableList().apply {
+            add(User(id = users.size + 1, name = "Novo Usuário", avatarUrl = ""))
         }
+    }) {
+        Text("Adicionar Usuário")
     }
 }
 ```
 
 ---
 
-## Dicas Finais
+## Boas Práticas
 
-- Prefira `immutable` + recriar lista (ex: `tasks = tasks + novoItem`) para clareza.
-- Use chaves (`key = { it.id }`) ao animar ou preservar estado interno.
-- Para listas grandes, otimize usando tipos estáveis (`@Stable`) se necessário.
-- Combine com `LazyColumn` + `rememberLazyListState()` para scroll controlado.
-- Animações extras: `AnimatedVisibility`, `animateContentSize()`, `crossfade()`.
+1. **Use chaves estáveis**:
+   - Sempre forneça uma chave única para cada item em `LazyColumn` para evitar problemas de desempenho.
+
+2. **Gerencie estado corretamente**:
+   - Use `remember` para manter o estado local e `ViewModel` para estado compartilhado.
+
+3. **Evite recomposições desnecessárias**:
+   - Certifique-se de que os itens da lista sejam imutáveis.
 
 ---
 
-## Resumo
+## Exercícios Práticos
 
-Compose elimina a necessidade de Adapter e DiffUtil: o estado dirige a UI. Atualize a lista, recomposição cuida do resto. Menos código, mais legibilidade, fácil ampliar com eventos, animações e side-effects.
+1. **Lista Simples**:
+   - Crie uma lista de tarefas com `LazyColumn` e permita marcar tarefas como concluídas.
+
+2. **Animações**:
+   - Adicione animações para remoção de itens da lista.
+
+3. **Desafio**:
+   - Implemente uma lista com carregamento paginado (infinite scroll) usando `LazyColumn` e `remember`.
+
+---

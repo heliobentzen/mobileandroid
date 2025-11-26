@@ -2,6 +2,22 @@
 
 O Android é um sistema operacional móvel desenvolvido pelo Google, amplamente utilizado em smartphones e tablets. Ele oferece uma plataforma aberta para desenvolvedores criarem aplicativos inovadores, utilizando a linguagem de programação Kotlin.
 
+## Contexto Histórico
+
+O Android foi lançado em 2008 e, desde então, evoluiu significativamente. Inicialmente, o desenvolvimento era focado em XML para layouts e Java como linguagem principal. Com o tempo, o Google introduziu o Kotlin como linguagem oficial e o Jetpack Compose como uma abordagem moderna para criar interfaces de usuário de forma declarativa.
+
+### Por que escolher Android?
+- **Ampla adoção**: Mais de 70% dos dispositivos móveis utilizam Android.
+- **Flexibilidade**: Suporte para uma ampla gama de dispositivos, incluindo wearables, TVs e carros.
+- **Comunidade ativa**: Uma das maiores comunidades de desenvolvedores do mundo.
+
+### Comparação com outras plataformas
+| Plataforma       | Linguagem Principal | UI Declarativa         | Ecossistema |
+|------------------|---------------------|------------------------|-------------|
+| Android          | Kotlin              | Jetpack Compose        | Aberto      |
+| iOS              | Swift               | SwiftUI                | Fechado     |
+| Flutter          | Dart                | Widgets (próprio)      | Multiplataforma |
+
 ## Desenvolvimento no Android Studio com Jetpack Compose
 
 O Android Studio é o ambiente de desenvolvimento oficial para criar aplicativos Android. Com a introdução do Jetpack Compose, a criação de interfaces se tornou mais intuitiva e declarativa.

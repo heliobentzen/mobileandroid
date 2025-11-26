@@ -2,12 +2,24 @@
 
 Objetivo: Mostrar o padrão MVVM com `StateFlow` e Jetpack Compose de forma direta, usando uma lista de tarefas carregada de um repositório simulado.
 
+---
+
 ## Conceitos
 
-- Model: Fonte de dados (ex: Repository).
-- ViewModel: Expõe estado imutável (`StateFlow<UiState>`) e processa eventos.
-- View (Compose): Observa estado e envia eventos de usuário.
-- Fluxo: View -> ViewModel -> Repository -> ViewModel -> View.
+- **Model**: Fonte de dados (ex: Repository).
+- **ViewModel**: Expõe estado imutável (`StateFlow<UiState>`) e processa eventos.
+- **View (Compose)**: Observa estado e envia eventos de usuário.
+- **Fluxo**: View -> ViewModel -> Repository -> ViewModel -> View.
+
+### Diagrama do Fluxo MVVM
+
+```plaintext
+[View] -- eventos --> [ViewModel] -- solicitações --> [Repository]
+   ^                                                      |
+   |-------------------- estado atualizado ----------------|
+```
+
+---
 
 ## Estado da UI
 
@@ -23,6 +35,8 @@ sealed interface UiState {
 
 data class Task(val id: Long, val title: String, val done: Boolean)
 ```
+
+---
 
 ## Fonte de Dados (Repository)
 
@@ -45,6 +59,8 @@ class TasksRepository {
 }
 ```
 
+---
+
 ## ViewModel (Somente Lógica de Apresentação)
 
 ```kotlin
@@ -55,145 +71,79 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-class TasksViewModel(
-    private val repository: TasksRepository = TasksRepository()
-) : ViewModel() {
+class TasksViewModel(private val repository: TasksRepository) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState
 
-    init { load() }
-
-    fun onRefresh() = load()
-
-    private fun load() {
-        _uiState.value = UiState.Loading
+    fun loadTasks() {
         viewModelScope.launch {
             try {
                 val tasks = repository.fetchTasks()
                 _uiState.value = UiState.Success(tasks)
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Falha inesperada.")
+                _uiState.value = UiState.Error(e.message ?: "Erro desconhecido")
             }
         }
     }
 }
 ```
 
-## View (Compose) Reativa
+---
+
+## View (Compose)
 
 ```kotlin
 // TasksScreen.kt
-import androidx.compose.runtime.*
-import androidx.compose.material3.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun TasksScreen(vm: TasksViewModel = viewModel()) {
-    val state by vm.uiState.collectAsStateWithLifecycle()
+fun TasksScreen(viewModel: TasksViewModel = viewModel()) {
+    val uiState by viewModel.uiState.collectAsState()
 
-    when (state) {
-        UiState.Loading -> Loading()
-        is UiState.Success -> TasksList(
-            tasks = (state as UiState.Success).tasks,
-            onRefresh = vm::onRefresh
-        )
-        is UiState.Error -> ErrorMessage(
-            message = (state as UiState.Error).message,
-            onRetry = vm::onRefresh
-        )
+    when (uiState) {
+        is UiState.Loading -> LoadingScreen()
+        is UiState.Success -> TasksList((uiState as UiState.Success).tasks)
+        is UiState.Error -> ErrorScreen((uiState as UiState.Error).message)
     }
 }
 
 @Composable
-private fun Loading() = Box(
-    modifier = Modifier.fillMaxSize(),
-    contentAlignment = Alignment.Center
-) { CircularProgressIndicator() }
-
-@Composable
-private fun TasksList(tasks: List<Task>, onRefresh: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Tarefas", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(12.dp))
-        tasks.forEach { task ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    (if (task.done) "✅ " else "⬜ ") + task.title,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-        }
-        Spacer(Modifier.height(24.dp))
-        OutlinedButton(onClick = onRefresh) { Text("Atualizar") }
-    }
+fun LoadingScreen() {
+    // Exibe um indicador de carregamento
 }
 
 @Composable
-private fun ErrorMessage(message: String, onRetry: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("Erro: $message", color = MaterialTheme.colorScheme.error)
-        Spacer(Modifier.height(12.dp))
-        Button(onClick = onRetry) { Text("Tentar novamente") }
-    }
+fun TasksList(tasks: List<Task>) {
+    // Exibe a lista de tarefas
+}
+
+@Composable
+fun ErrorScreen(message: String) {
+    // Exibe uma mensagem de erro
 }
 ```
 
-## Activity
+---
 
-```kotlin
-// MainActivity.kt
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme {
-                Surface { TasksScreen() }
-            }
-        }
-    }
-}
-```
+## Exercícios Práticos
 
-## Dependências (build.gradle.kts)
+1. **Estado da UI**:
+   - Adicione um novo estado à sealed interface `UiState` para representar uma lista vazia.
 
-```kotlin
-implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
-implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
-implementation("androidx.activity:activity-compose:1.9.2")
-implementation("androidx.compose.material3:material3:1.2.1")
-```
+2. **Repository**:
+   - Modifique o `TasksRepository` para simular diferentes tempos de resposta e erros específicos.
 
-## Fluxo Resumido
+3. **ViewModel**:
+   - Adicione um método ao `TasksViewModel` para marcar uma tarefa como concluída e atualizar o estado.
 
-1. ViewModel inicia em Loading.
-2. Repository simula busca.
-3. Sucesso -> UiState.Success exibido.
-4. Erro -> UiState.Error exibido.
-5. Usuário aciona refresh -> repete ciclo.
+4. **View**:
+   - Implemente a função `TasksList` para exibir as tarefas em uma `LazyColumn`.
 
-## Por que é moderno?
+5. **Desafio**:
+   - Crie um botão na tela de erro para tentar carregar as tarefas novamente.
 
-- `collectAsStateWithLifecycle` evita vazamentos.
-- Estado imutável e simples.
-- Repositório isolado facilita testes.
-- Código curto foca no essencial.
-
-Experimente adicionar: alternância de done, persistência local, paginação.
-
-Pronto: MVVM claro, reativo e previsível.
+---
