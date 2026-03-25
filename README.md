@@ -22,7 +22,7 @@ Formar o aluno para entregar um app Android profissional usando a stack estável
 ### Módulo 2 - Arquitetura MVVM e UI Dinâmica
 - **MVVM**: `ViewModel` + `StateFlow` (`UiState` com `sealed class`) e fluxo unidirecional de dados.
 - **Eventos One-Shot**: `SharedFlow` para navegação/toasts.
-- **Listas**: `LazyColumn` com `ListAdapter` + `DiffUtil`.
+- **Listas**: `LazyColumn` com chaves estáveis para listas eficientes e reativos.
 - **Navegação**: `Navigation Component` + `Safe Args` para navegação segura e testável.
 - **Acessibilidade**: `contentDescription`, foco, labels e strings externalizadas.
 
@@ -53,7 +53,7 @@ Formar o aluno para entregar um app Android profissional usando a stack estável
 | Coroutines + Flow | Concorrência e reatividade |
 | Room | Persistência local estruturada |
 | DataStore | Armazenamento leve de preferências |
-| Retrofit + OkHttp + Moshi | Consumo de APIs REST |
+| Retrofit + OkHttp + Gson | Consumo de APIs REST |
 | Hilt | Injeção de dependências |
 | Coil | Carregamento de imagens |
 | JUnit / Mockito / Espresso | Testes |

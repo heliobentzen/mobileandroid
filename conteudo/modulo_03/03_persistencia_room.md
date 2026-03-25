@@ -8,24 +8,24 @@ Use as versões estáveis mais recentes.
 ```kotlin
 plugins {
     id("org.jetbrains.kotlin.android")
-    id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlin.plugin.compose") // obrigatório a partir do Kotlin 2.0
+    id("com.google.devtools.ksp") // KSP: mais rápido que KAPT para processamento de anotações
 }
 
 dependencies {
-    // Room
-    implementation("androidx.room:room-ktx:<versão>")
-    ksp("androidx.room:room-compiler:<versão>")
+    // Room (prefira KSP ao KAPT: mais rápido e sem warnings de depreciação)
+    implementation("androidx.room:room-runtime:2.7.0")
+    implementation("androidx.room:room-ktx:2.7.0")         // suporte a Coroutines e Flow
+    ksp("androidx.room:room-compiler:2.7.0")               // gerador de código
 
     // Lifecycle + ViewModel + coroutines
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:<versão>")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:<versão>")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:<versão>")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:<versão>")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
 }
 ```
-
-Dica: prefira KSP ao KAPT para Room.
 
 ## 2) Camadas mínimas
 
@@ -338,7 +338,7 @@ fun TaskScreen(vm: TaskViewModel) {
                     Text(task.title, Modifier.weight(1f).padding(start = 8.dp))
                     TextButton(onClick = { vm.delete(task) }) { Text("Excluir") }
                 }
-                Divider()
+                HorizontalDivider() // Material 3: use HorizontalDivider em vez de Divider
             }
         }
     }

@@ -21,12 +21,16 @@ Características:
 Exemplo simples:
 
 ```kotlin
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.tooling.preview.Preview
+
 @Composable
 fun Greeting(name: String) {
-    androidx.compose.material3.Text("Olá, $name!")
+    Text("Olá, $name!")
 }
 
-@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
     Greeting("Compose")
@@ -52,16 +56,25 @@ Quando um estado observado muda:
 Exemplo contador:
 
 ```kotlin
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+
 @Composable
 fun SimpleCounter() {
-    var count by androidx.compose.runtime.remember { 
-        androidx.compose.runtime.mutableStateOf(0) 
-    }
+    // 'remember' mantém o valor entre recomposições
+    // 'by' é um atalho do Kotlin para getter/setter do State
+    var count by remember { mutableStateOf(0) }
 
-    androidx.compose.foundation.layout.Column {
-        androidx.compose.material3.Text("Você clicou $count vezes.")
-        androidx.compose.material3.Button(onClick = { count++ }) {
-            androidx.compose.material3.Text("Incrementar")
+    Column {
+        Text("Você clicou $count vezes.")
+        Button(onClick = { count++ }) {
+            Text("Incrementar")
         }
     }
 }
@@ -84,21 +97,30 @@ Regra prática:
 Exemplo refatorado:
 
 ```kotlin
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+
+// Composable "burro": apenas recebe dados e emite eventos
 @Composable
 fun CounterStateless(count: Int, onIncrement: () -> Unit) {
-    androidx.compose.foundation.layout.Column {
-        androidx.compose.material3.Text("Clique: $count")
-        androidx.compose.material3.Button(onClick = onIncrement) {
-            androidx.compose.material3.Text("Adicionar")
+    Column {
+        Text("Clique: $count")
+        Button(onClick = onIncrement) {
+            Text("Adicionar")
         }
     }
 }
 
+// Composable "inteligente": gerencia o estado e delega para o stateless
 @Composable
 fun CounterStateful() {
-    var count by androidx.compose.runtime.remember { 
-        androidx.compose.runtime.mutableStateOf(0) 
-    }
+    var count by remember { mutableStateOf(0) }
     CounterStateless(
         count = count,
         onIncrement = { count++ }
@@ -123,12 +145,16 @@ Benefícios:
 Uso básico:
 
 ```kotlin
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+
 @Composable
 fun AppRoot() {
     // Substitua pelo tema do seu projeto: MyAppTheme { ... }
-    androidx.compose.material3.MaterialTheme {
-        androidx.compose.material3.Surface(
-            color = androidx.compose.material3.MaterialTheme.colorScheme.background
+    MaterialTheme {
+        Surface(
+            color = MaterialTheme.colorScheme.background // Material 3 usa colorScheme
         ) {
             Greeting("Android")
         }

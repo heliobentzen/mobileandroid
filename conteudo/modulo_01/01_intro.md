@@ -54,17 +54,20 @@ Você verá dois lugares principais de configuração:
 Exemplo mínimo de dependências usando catálogo:
 ```toml
 [versions]
-agp = "8.5.1"
-kotlin = "2.0.0"
-compose = "1.4.0"
+agp = "8.8.0"
+kotlin = "2.1.0"
+composeBom = "2025.01.00"
 
 [libraries]
-androidx-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "compose" }
-androidx-compose-material = { group = "androidx.compose.material", name = "material", version.ref = "compose" }
+# Usando o BOM do Compose para gerenciar versões automaticamente
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ```
 
 E no `app/build.gradle.kts` você usa aliases:
@@ -72,6 +75,7 @@ E no `app/build.gradle.kts` você usa aliases:
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose) // plugin obrigatório a partir do Kotlin 2.0
 }
 
 android {
@@ -90,8 +94,10 @@ android {
 }
 
 dependencies {
+    // Use o BOM para gerenciar automaticamente as versões do Compose
+    implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.material)
+    implementation(libs.androidx.compose.material3)
 }
 ```
 
@@ -123,10 +129,32 @@ Vamos criar um aplicativo simples que exibe "Hello World" na tela para validar t
 3. Abra o arquivo `app/src/main/java/com/exemplo/app/MainActivity.kt` e substitua o conteúdo por:
 
     ```kotlin
-    setContent {
-        MaterialTheme {
-            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
-                Text("Hello World!", modifier = Modifier.align(Alignment.Center))
+    import androidx.activity.ComponentActivity
+    import androidx.activity.compose.setContent
+    import androidx.compose.foundation.layout.Box
+    import androidx.compose.foundation.layout.fillMaxSize
+    import androidx.compose.material3.MaterialTheme
+    import androidx.compose.material3.Surface
+    import androidx.compose.material3.Text
+    import androidx.compose.ui.Alignment
+    import androidx.compose.ui.Modifier
+
+    class MainActivity : ComponentActivity() {
+        override fun onCreate(savedInstanceState: android.os.Bundle?) {
+            super.onCreate(savedInstanceState)
+            setContent {
+                MaterialTheme {
+                    // Surface preenche toda a tela com a cor de fundo do tema
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background // Material 3: use colorScheme
+                    ) {
+                        // Box permite centralizar o conteúdo
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("Hello World!")
+                        }
+                    }
+                }
             }
         }
     }
