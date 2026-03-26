@@ -20,22 +20,24 @@ Abaixo: opção 2 (Compose puro) focada em testabilidade e segurança manual dos
 plugins {
     id("com.android.application")
     kotlin("android")
+    kotlin("plugin.compose") // obrigatório a partir do Kotlin 2.0
 }
 
 android {
     namespace = "com.example.app"
-    compileSdk = 34
+    compileSdk = 35
     defaultConfig {
         minSdk = 24
     }
     buildFeatures { compose = true }
-    composeOptions { kotlinCompilerExtensionVersion = "1.5.3" }
+    // Nota: kotlinCompilerExtensionVersion não é necessário com o plugin kotlin.compose
 }
 
 dependencies {
-    val navVersion = "2.7.7"
+    val navVersion = "2.8.9"
     implementation("androidx.navigation:navigation-compose:$navVersion")
-    implementation(platform("androidx.compose:compose-bom:2024.10.00"))
+    // BOM (Bill of Materials) gerencia todas as versões do Compose automaticamente
+    implementation(platform("androidx.compose:compose-bom:2025.01.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -278,9 +280,19 @@ fun NavigationGraph(navController: NavHostController) {
 
 ## Passo 4: Implementar o BottomNavigation
 
-Crie o componente de navegação inferior:
+Crie o componente de navegação inferior usando os componentes Material 3:
 
 ```kotlin
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.res.painterResource
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+
 @Composable
 fun BottomNavigationBar(navController: NavController) {
     val items = listOf(
@@ -289,11 +301,12 @@ fun BottomNavigationBar(navController: NavController) {
         Screen.Profile
     )
 
-    BottomNavigation {
+    // NavigationBar é o componente Material 3 (substitui BottomNavigation do Material 2)
+    NavigationBar {
         val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
         items.forEach { screen ->
-            BottomNavigationItem(
+            NavigationBarItem(
                 icon = { Icon(painterResource(id = screen.icon), contentDescription = screen.title) },
                 label = { Text(screen.title) },
                 selected = currentRoute == screen.route,

@@ -14,7 +14,7 @@ Primeiro, vamos configurar um novo projeto no Android Studio.
     *   **Package name:** `com.example.composenavigationapp` (ou o que preferir)
     *   **Save location:** Escolha um diretório para salvar o projeto.
     *   **Language:** `Kotlin`
-    *   **Minimum SDK version:** `API 21: Android 5.0 (Lollipop)` (ou superior)
+    *   **Minimum SDK version:** `API 24: Android 7.0 (Nougat)` (cobre mais de 97% dos dispositivos ativos)
     *   **Build configuration language:** `Kotlin DSL`
 5.  Clique em `Finish`.
 
@@ -31,7 +31,7 @@ dependencies {
     // ... outras dependências existentes
 
     // Navigation Compose
-    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.navigation:navigation-compose:2.8.9")
 }
 ```
 
