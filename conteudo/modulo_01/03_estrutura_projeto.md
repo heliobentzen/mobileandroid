@@ -1,6 +1,12 @@
-### Estrutura de Projeto: visão simples
+# Estrutura de Projeto Android
 
-#### 1. Por que organizar?
+Todo projeto Android de qualidade precisa de uma organização clara de arquivos e pastas. Sem uma estrutura bem definida, à medida que o projeto cresce fica cada vez mais difícil entender onde cada coisa está, escrever testes e adicionar novas funcionalidades sem quebrar o que já existe.
+
+Nesta seção, você vai aprender como estruturar um projeto Android de forma modular e escalável, seguindo as boas práticas recomendadas pelo Google.
+
+---
+
+## 1. Por que organizar?
 Facilita manutenção, testes e crescimento. Separe por responsabilidade.
 
 Sugestão inicial:
@@ -14,18 +20,20 @@ feature-login/    (tela e lógica da feature)
 design-system/    (componentes UI)
 ```
 
-#### 2. Gradle básico
+Cada módulo tem uma responsabilidade única, o que facilita trocá-lo ou testá-lo de forma independente.
+
+## 2. Gradle básico
 - Use Kotlin DSL (`build.gradle.kts`).
 - Centralize versões em `libs.versions.toml`.
 - Ative cache e paralelismo.
 - Declare dependências de forma explícita.
 
-#### 3. Namespace vs applicationId
+## 3. Namespace vs applicationId
 - Cada módulo Android: `android { namespace = "com.exemplo.feature.login" }`
 - Só o módulo `app` tem `applicationId`.
 - Padrão simples: `com.empresa.(core|feature|design).nome`.
 
-#### 4. Variantes (quando preciso)
+## 4. Variantes (quando preciso)
 - Build Types: `debug`, `release`.
 - Flavors só se houver diferença real (ex: URL de API).
 Exemplo mínimo:
@@ -44,7 +52,7 @@ android {
 ```
 Evite muitos diretórios (`src/freeDebug/`) no início.
 
-#### 5. Boas práticas iniciais
+## 5. Boas práticas iniciais
 - Extraia código comum para módulos sem Android.
 - Menos flavors = build mais rápido.
 - Use `implementation` como padrão (evite `api` cedo).
@@ -57,7 +65,7 @@ Checklist rápido:
 - Cache Gradle ligado?
 - Diferença clara entre `applicationId` e `namespace`?
 
-#### 6. Camadas simples
+## 6. Camadas simples
 - data: fala com rede e banco.
 - domain: regras e use cases.
 - presentation: ViewModel + UI.
@@ -65,7 +73,7 @@ Checklist rápido:
 Fluxo:
 UI -> ViewModel -> UseCase -> Repository -> (Network | DB)
 
-#### 7. Network (Retrofit)
+## 7. Network (Retrofit)
 ```
 interface ApiService {
     @GET("users/{id}")
@@ -74,21 +82,21 @@ interface ApiService {
 ```
 Criar Retrofit com base URL do `BuildConfig`.
 
-#### 8. Banco (Room)
+## 8. Banco (Room)
 Entidade + DAO + Database:
 ```
 @Entity(tableName = "users")
 data class UserEntity(@PrimaryKey val id: String, val name: String)
 ```
 
-#### 9. Repository simples
+## 9. Repository simples
 - Tenta cache (DAO).
 - Se não existe, busca na API e salva.
 
-#### 10. Use Case
+## 10. Use Case
 Encapsula ação: `GetUserUseCase(id)`.
 
-#### 11. ViewModel
+## 11. ViewModel
 - Expõe estado com `StateFlow`.
 - Carrega e atualiza UI.
 
@@ -102,24 +110,24 @@ sealed interface UserUiState {
 }
 ```
 
-#### 12. DI (ex: Hilt)
+## 12. DI (ex: Hilt)
 `@HiltAndroidApp` no `Application`.
 Módulos para fornecer Retrofit, OkHttp, Database.
 
-#### 13. Flavors para ambientes
+## 13. Flavors para ambientes
 Defina:
 ```
 buildConfigField("String", "API_BASE_URL", "\"https://api.free.example.com\"")
 ```
 
-#### 14. Modelos
+## 14. Modelos
 - DTO (rede)
 - Entity (banco)
 - Domain (regra)
 - UI (exibição)
 Converter nas bordas com mappers simples.
 
-#### 15. Testes iniciais
+## 15. Testes iniciais
 - Repository: fake API + Room em memória.
 - ViewModel: testar `StateFlow`.
 

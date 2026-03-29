@@ -93,37 +93,105 @@ class TasksViewModel(private val repository: TasksRepository) : ViewModel() {
 
 ## View (Compose)
 
+A View no MVVM é responsável apenas por **observar** o estado e **renderizar** a UI. Ela não contém lógica de negócio. O `collectAsState()` converte o `StateFlow` do ViewModel em um estado observável pelo Compose, disparando recomposição sempre que o valor mudar.
+
 ```kotlin
 // TasksScreen.kt
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun TasksScreen(viewModel: TasksViewModel = viewModel()) {
+    // Coleta o StateFlow como estado do Compose.
+    // Sempre que uiState mudar no ViewModel, esta função é recomposta.
     val uiState by viewModel.uiState.collectAsState()
 
     when (uiState) {
         is UiState.Loading -> LoadingScreen()
         is UiState.Success -> TasksList((uiState as UiState.Success).tasks)
-        is UiState.Error -> ErrorScreen((uiState as UiState.Error).message)
+        is UiState.Error -> ErrorScreen(
+            message = (uiState as UiState.Error).message,
+            onRetry = { viewModel.loadTasks() }
+        )
     }
 }
 
+// Exibe um indicador de carregamento centralizado na tela
 @Composable
 fun LoadingScreen() {
-    // Exibe um indicador de carregamento
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
+    }
 }
 
+// Exibe a lista de tarefas usando LazyColumn (equivalente ao RecyclerView)
 @Composable
-fun TasksList(tasks: List<Task>) {
-    // Exibe a lista de tarefas
+fun TasksList(tasks: List<Task>, onToggle: (Task) -> Unit = {}) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(tasks, key = { it.id }) { task ->
+            TaskItem(task, onToggle)
+        }
+    }
 }
 
+// Composable para renderizar um único item da lista.
+// Recebe o callback `onToggle` do pai, mantendo este composable stateless.
 @Composable
-fun ErrorScreen(message: String) {
-    // Exibe uma mensagem de erro
+fun TaskItem(task: Task, onToggle: (Task) -> Unit = {}) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Passamos onToggle para onCheckedChange — o composable é stateless:
+            // ele delega a mudança de estado para quem o chamou (ViewModel).
+            Checkbox(
+                checked = task.done,
+                onCheckedChange = { onToggle(task) }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = task.title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+    }
+}
+
+// Exibe a mensagem de erro com opção de tentar novamente
+@Composable
+fun ErrorScreen(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Ocorreu um erro: $message",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onRetry) {
+            Text("Tentar novamente")
+        }
+    }
 }
 ```
 
