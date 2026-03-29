@@ -1,13 +1,16 @@
 # Retrofit + Gson + Coroutines + Jetpack Compose (guia progressivo)
 
-Objetivo: consumir uma API pública com Retrofit, organizar em camadas (instância, model, ViewModel, UI com Compose), usando `suspend fun` e evoluindo o conteúdo de forma progressiva.
+Retrofit é a biblioteca mais popular para consumo de APIs REST no Android. Ela funciona declarando interfaces Kotlin com anotações que descrevem os endpoints, e é integrada com coroutines para operações assíncronas sem bloquear a UI.
 
-API usada: JSONPlaceholder (sem chave)
-- Base URL: https://jsonplaceholder.typicode.com/
-- Endpoints: /posts e /posts/{id}
+Neste guia, vamos consumir a [JSONPlaceholder](https://jsonplaceholder.typicode.com/), uma API pública gratuita ideal para aprendizado, organizando o código em camadas (data, domain, presentation).
 
+**API usada:** JSONPlaceholder (sem necessidade de chave de acesso)
+- Base URL: `https://jsonplaceholder.typicode.com/`
+- Endpoints utilizados: `/posts` e `/posts/{id}`
 
-Dependências (build.gradle.kts do módulo app)
+---
+
+## Dependências (build.gradle.kts do módulo app)
 ```kotlin
 dependencies {
     // Retrofit + Gson
@@ -34,7 +37,9 @@ dependencies {
 }
 ```
 
-Estrutura de pastas (sugestão)
+## Estrutura de pastas (sugestão)
+
+Organizar o projeto em camadas facilita testes, manutenção e clareza sobre onde cada tipo de código deve ficar:
 - data
   - remote (Retrofit, services, DTOs)
   - repository
@@ -43,7 +48,11 @@ Estrutura de pastas (sugestão)
 - presentation
   - post (ViewModel e UI/Compose)
 
-Parte 1: Instância do Retrofit (camada data/remote)
+---
+
+## Parte 1: Instância do Retrofit (camada data/remote)
+
+O `ApiClient` é um objeto singleton responsável por criar e fornecer a instância do Retrofit. Configuramos aqui o OkHttp (cliente HTTP), o Gson (conversor JSON→objeto) e os timeouts de conexão.
 ```kotlin
 // data/remote/ApiClient.kt
 package com.example.retrofitdemo.data.remote
@@ -85,7 +94,11 @@ object ApiClient {
 }
 ```
 
-Parte 2: Modelos (DTO e Domain)
+---
+
+## Parte 2: Modelos (DTO e Domain)
+
+É uma boa prática separar o modelo de dados da rede (DTO — Data Transfer Object) do modelo de domínio. O DTO reflete exatamente o JSON recebido; o modelo de domínio representa o conceito de negócio, independente da fonte de dados.
 ```kotlin
 // data/remote/dto/PostDto.kt
 package com.example.retrofitdemo.data.remote.dto
@@ -112,7 +125,11 @@ data class Post(
 )
 ```
 
-Parte 3: Service (endpoints com suspend fun)
+---
+
+## Parte 3: Service (endpoints com suspend fun)
+
+O `PostService` é a interface que descreve os endpoints da API. O Retrofit gera automaticamente a implementação em tempo de execução. Usamos `suspend fun` para que as chamadas de rede possam ser executadas de forma assíncrona com coroutines.
 ```kotlin
 // data/remote/service/PostService.kt
 package com.example.retrofitdemo.data.remote.service
@@ -134,7 +151,11 @@ interface PostService {
 }
 ```
 
-Parte 4: Repository (camada data/repository)
+---
+
+## Parte 4: Repository (camada data/repository)
+
+O Repository é o mediador entre as fontes de dados (remota, local) e o ViewModel. Ele abstrai a origem dos dados, permitindo que o ViewModel apenas solicite "os posts" sem se preocupar se vieram da rede, do banco local, etc.
 ```kotlin
 // data/repository/PostRepository.kt
 package com.example.retrofitdemo.data.repository
@@ -193,7 +214,11 @@ class PostRepositoryImpl(
 }
 ```
 
-Parte 5: ViewModel (StateFlow + coroutines)
+---
+
+## Parte 5: ViewModel (StateFlow + coroutines)
+
+O ViewModel expõe o estado da UI como `StateFlow` e usa `viewModelScope` para lançar coroutines. O uso de `runCatching` simplifica o tratamento de sucesso/falha sem blocos try/catch explícitos.
 ```kotlin
 // presentation/post/PostUiState.kt
 package com.example.retrofitdemo.presentation.post
@@ -239,7 +264,11 @@ class PostViewModel(
 }
 ```
 
-Parte 6: UI com Jetpack Compose
+---
+
+## Parte 6: UI com Jetpack Compose
+
+A tela observa o `StateFlow` do ViewModel e renderiza cada estado (carregando, erro ou sucesso) de forma declarativa.
 ```kotlin
 // presentation/post/PostScreen.kt
 package com.example.retrofitdemo.presentation.post
@@ -311,7 +340,9 @@ private fun PostItem(post: Post) {
 }
 ```
 
-Factory extraída
+---
+
+## Factory extraída
 ```kotlin
 // presentation/post/PostViewModelFactory.kt
 package com.example.retrofitdemo.presentation.post
@@ -333,7 +364,9 @@ class PostViewModelFactory(
 }
 ```
 
-Activity
+---
+
+## Activity
 ```kotlin
 // MainActivity.kt
 package com.example.retrofitdemo
@@ -374,7 +407,9 @@ class MainActivity : ComponentActivity() {
 }
 ```
 
-Parte 7: Erros, logging e boas práticas
+---
+
+## Parte 7: Erros, logging e boas práticas
 - Logging: HttpLoggingInterceptor (BASIC). Em debug, pode usar BODY.
 - Tratamento de exceções: HttpException, IOException, mapeadas em ViewModel.
 - Separar DTO de Domain: mantém isolamento sem precisar de arquivo mapper quando transformação é simples.
@@ -402,7 +437,7 @@ if (response.isSuccessful) {
 }
 ```
 
-Parte 8: Evoluindo o exemplo
+## Parte 8: Evoluindo o exemplo
 - Filtro por usuário (query):
 ```kotlin
 // ViewModel
@@ -420,7 +455,9 @@ fun loadPostsByUser(userId: Int) = viewModelScope.launch {
 - DI com Hilt (opcional):
   - Módulos para Retrofit, Service e Repository.
 
-Dicas finais
+---
+
+## Dicas finais
 - baseUrl com barra final.
 - Funções de rede como suspend.
 - StateFlow para reatividade.

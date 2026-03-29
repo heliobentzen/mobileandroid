@@ -142,3 +142,43 @@ println("Trabalho cancelado.")
 ```
 
 Usar a propriedade `isActive` em loops computacionais garante que sua coroutine coopere com o cancelamento, tornando seu aplicativo mais seguro e previsível.
+---
+
+## Resumo
+
+| Conceito | O que é | Analogia do restaurante |
+|---|---|---|
+| **Dispatcher** | Define a thread onde a coroutine executa | Qual área do restaurante faz a tarefa |
+| **`Dispatchers.Main`** | Thread da UI | O garçom (atende clientes) |
+| **`Dispatchers.IO`** | Thread para I/O (rede, banco) | A cozinha |
+| **`Dispatchers.Default`** | Thread para tarefas CPU-intensivas | A área de preparação |
+| **`withContext`** | Troca de dispatcher | Garçom levando pedido à cozinha e esperando |
+| **`CoroutineScope`** | Gerencia ciclo de vida das coroutines | O gerente do turno |
+| **Cancelamento cooperativo** | Coroutine precisa verificar `isActive` | Cozinheiro que verifica se o pedido foi cancelado |
+
+**Regras de ouro:**
+1. Nunca execute operações longas na `Dispatchers.Main` (UI thread).
+2. Use `viewModelScope` para operações ligadas à tela — ele cancela automaticamente quando o ViewModel é destruído.
+3. Prefira funções `suspend` da biblioteca padrão: elas já cooperam com o cancelamento.
+4. Verifique `isActive` em loops computacionais sem pontos de suspensão.
+
+---
+
+## Exercícios Práticos
+
+1. **Dispatchers**:
+   - Escreva uma coroutine que usa `withContext(Dispatchers.IO)` para simular uma chamada de rede com `delay(2000)` e, ao terminar, retorna uma string para ser exibida na UI.
+
+2. **Concorrência Estruturada**:
+   - Lance duas coroutines em paralelo dentro de um `viewModelScope`: uma que "busca" dados do usuário (delay de 1s) e outra que "busca" dados de posts (delay de 1,5s). Exiba uma mensagem quando ambas terminarem.
+   - *Dica*: use `launch` para ambas e `join()` ou use `async/await` para combinar os resultados.
+
+3. **Cancelamento**:
+   - Crie um botão "Iniciar" que lança uma coroutine que conta de 1 a 100 com delay de 100ms entre cada número. Crie um botão "Cancelar" que cancela essa coroutine. Verifique que o cancelamento funciona corretamente.
+
+4. **Desafio**:
+   - Implemente um `ViewModel` com um método `search(query: String)` que:
+     - Cancela uma busca anterior se ainda estiver em andamento.
+     - Aguarda 500ms após a última chamada antes de executar (debounce).
+     - Busca dados de uma fonte simulada (use `delay` + uma lista filtrada).
+     - Expõe o resultado via `StateFlow`.

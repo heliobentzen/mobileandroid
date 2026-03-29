@@ -1,5 +1,31 @@
 # Repository Pattern com Room + Retrofit (JSONPlaceholder)
 
+## O que é o Repository Pattern e por que usá-lo?
+
+O **Repository Pattern** é um padrão de design que cria uma camada de abstração entre as fontes de dados (banco de dados local, API remota, cache) e o restante da aplicação (ViewModel, Use Cases).
+
+Sem um Repository, o ViewModel precisaria saber de onde os dados vêm — se da rede ou do banco local — e gerenciar toda essa complexidade diretamente. Com o Repository, o ViewModel simplesmente pede "me dê os posts" e o Repository decide a melhor estratégia: verificar o cache primeiro, ir à rede se necessário, combinar as fontes, etc.
+
+**Benefícios:**
+- **Separação de responsabilidades**: o ViewModel não sabe de onde os dados vêm.
+- **Testabilidade**: é fácil substituir o Repository por um fake em testes.
+- **Reutilização**: múltiplos ViewModels podem usar o mesmo Repository.
+- **Estratégias de cache**: centraliza a lógica de "quando buscar localmente vs remotamente".
+
+O fluxo de dados neste exemplo segue a estratégia *cache-first*:
+
+```mermaid
+flowchart LR
+    VM[ViewModel] --> R[Repository]
+    R --> D{Room\nvazio?}
+    D -- Não --> VM
+    D -- Sim --> API[Retrofit]
+    API --> S[(Room)]
+    S --> VM
+```
+
+---
+
 Exemplo mínimo, focado em aprendizagem e clareza. A lógica: tentar ler do banco; se vazio, buscar remoto, salvar e devolver. Camadas: Entity (Room), DAO, Database, API (Retrofit), Repository, ViewModel, UI (Compose).
 
 ## Dependências (build.gradle app)
