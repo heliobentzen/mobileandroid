@@ -65,76 +65,17 @@ Checklist rápido:
 - Cache Gradle ligado?
 - Diferença clara entre `applicationId` e `namespace`?
 
-## 6. Camadas simples
-- data: fala com rede e banco.
-- domain: regras e use cases.
-- presentation: ViewModel + UI.
+## Resumo
 
-Fluxo:
-UI -> ViewModel -> UseCase -> Repository -> (Network | DB)
-
-## 7. Network (Retrofit)
-```
-interface ApiService {
-    @GET("users/{id}")
-    suspend fun getUser(@Path("id") id: String): UserDto
-}
-```
-Criar Retrofit com base URL do `BuildConfig`.
-
-## 8. Banco (Room)
-Entidade + DAO + Database:
-```
-@Entity(tableName = "users")
-data class UserEntity(@PrimaryKey val id: String, val name: String)
-```
-
-## 9. Repository simples
-- Tenta cache (DAO).
-- Se não existe, busca na API e salva.
-
-## 10. Use Case
-Encapsula ação: `GetUserUseCase(id)`.
-
-## 11. ViewModel
-- Expõe estado com `StateFlow`.
-- Carrega e atualiza UI.
-
-Estado básico:
-```
-sealed interface UserUiState {
-    data object Idle
-    data object Loading
-    data class Success(val user: User)
-    data class Error(val error: Throwable)
-}
-```
-
-## 12. DI (ex: Hilt)
-`@HiltAndroidApp` no `Application`.
-Módulos para fornecer Retrofit, OkHttp, Database.
-
-## 13. Flavors para ambientes
-Defina:
-```
-buildConfigField("String", "API_BASE_URL", "\"https://api.free.example.com\"")
-```
-
-## 14. Modelos
-- DTO (rede)
-- Entity (banco)
-- Domain (regra)
-- UI (exibição)
-Converter nas bordas com mappers simples.
-
-## 15. Testes iniciais
-- Repository: fake API + Room em memória.
-- ViewModel: testar `StateFlow`.
-
-Resumo:
 - Separe responsabilidades cedo.
 - Mantenha variantes e módulos no mínimo.
 - Centralize dependências.
-- Use camadas claras: data -> domain -> presentation.
 - Adicione complexidade só quando necessário.
+
+## Próximos passos
+
+Os tópicos de camadas (data/domain/presentation), rede (Retrofit), persistência (Room), Repository, ViewModel e DI (Hilt) serão aprofundados nos módulos seguintes:
+
+- **Módulo 2**: Arquitetura MVVM, ViewModel e fluxo de dados.
+- **Módulo 3**: Coroutines, Retrofit, Room e Repository Pattern.
 

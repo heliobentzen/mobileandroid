@@ -74,6 +74,20 @@ app/
 
 ---
 
+## 📂 Organização do Material
+
+```
+conteudo/
+ ┣ modulo_01/   (Fundamentos: Kotlin, estrutura, Activity, Compose)
+ ┣ modulo_02/   (Arquitetura: MVVM, listas, navegação, acessibilidade)
+ ┣ modulo_03/   (Dados: Coroutines, Retrofit, Room, Repository)
+ ┣ modulo_04/   (Finalização: Testes e Publicação)
+ ┗ praticas/    (Exercícios guiados passo a passo)
+src/            (Exemplos de código Kotlin)
+```
+
+---
+
 ## 🧪 Critérios de Conclusão
 - App final roda offline com cache coerente
 - Tratamento de erros visível ao usuário
