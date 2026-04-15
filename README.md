@@ -54,18 +54,19 @@ Entrega final: app com Compose, ViewModel testado, AAB pronto.
 
 ## Práticas
 
-Exercícios guiados passo a passo:
+Exercícios guiados passo a passo, ordenados do fundamental ao avançado.
+Recomendamos seguir na ordem abaixo para uma evolução progressiva:
 
-| # | Prática |
-|---|---------|
-| 01 | [Compose + Navigation](conteudo/praticas/01_compose_navigation.md) |
-| 02 | [Kotlin Básico](conteudo/praticas/02_kotlin_basico.md) |
-| 03 | [Jetpack Compose Básico](conteudo/praticas/03_jetpack_compose_basico.md) |
-| 04 | [MVVM + StateFlow](conteudo/praticas/04_mvvm_stateflow.md) |
-| 05 | [Listas com LazyColumn](conteudo/praticas/05_listas_lazy_column.md) |
-| 06 | [Coroutines](conteudo/praticas/06_coroutines.md) |
-| 07 | [Room — Persistência](conteudo/praticas/07_room_persistencia.md) |
-| 08 | [Retrofit — API](conteudo/praticas/08_retrofit_api.md) |
+| # | Prática | Pré-requisito |
+|---|---------|---------------|
+| 01 | [Kotlin Básico](conteudo/praticas/02_kotlin_basico.md) | Nenhum — comece aqui |
+| 02 | [Jetpack Compose Básico](conteudo/praticas/03_jetpack_compose_basico.md) | Kotlin Básico |
+| 03 | [Compose + Navigation](conteudo/praticas/01_compose_navigation.md) | Jetpack Compose Básico |
+| 04 | [MVVM + StateFlow](conteudo/praticas/04_mvvm_stateflow.md) | Compose + Navigation |
+| 05 | [Listas com LazyColumn](conteudo/praticas/05_listas_lazy_column.md) | MVVM + StateFlow |
+| 06 | [Coroutines](conteudo/praticas/06_coroutines.md) | MVVM + StateFlow |
+| 07 | [Room — Persistência](conteudo/praticas/07_room_persistencia.md) | Coroutines |
+| 08 | [Retrofit — API](conteudo/praticas/08_retrofit_api.md) | Coroutines |
 
 ## Projetos de exemplo
 
