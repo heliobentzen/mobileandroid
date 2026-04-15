@@ -40,6 +40,16 @@ override fun onDestroy() { super.onDestroy(); Log.d("Life", "onDestroy") }
 onAttach -> onCreate -> onCreateView -> onViewCreated -> onStart -> onResume  
 (onPause -> onStop -> onDestroyView -> onDestroy -> onDetach)
 
+**Principais callbacks explicados:**
+
+- **onAttach**: chamado quando o Fragment é associado à Activity hospedeira. É o primeiro ponto em que você pode acessar o contexto da Activity. Útil para obter referências ou validar que a Activity implementa interfaces esperadas.
+
+- **onCreateView**: responsável por inflar (criar) a hierarquia de views do Fragment. Em projetos Compose, é aqui que você retorna um `ComposeView` com o conteúdo declarativo. Retorne `null` se o Fragment não possui UI (ex: Fragment headless).
+
+- **onViewCreated**: chamado logo após `onCreateView`, quando a view já está criada mas ainda não foi exibida. É o local ideal para configurar listeners, observers e bindings na view — garante que a view não é nula.
+
+- **onDestroyView**: chamado quando a view do Fragment é removida da tela. Aqui você deve liberar referências à view para evitar vazamento de memória (memory leak). O Fragment em si ainda pode existir (ex: na back stack) e ser recriado depois.
+
 Compose em Fragment:
 ```kotlin
 class HomeFragment: Fragment() {
@@ -56,6 +66,15 @@ class HomeFragment: Fragment() {
 - DisposableEffect(key): registra recurso e limpa quando sai.
 - SideEffect: código sincronizado pós composição.
 - rememberUpdatedState(value): evita captura de valor antigo em efeitos lançados.
+
+**Quando usar cada efeito?**
+
+| Efeito | Use quando... | Exemplo |
+|---|---|---|
+| `LaunchedEffect(key)` | Precisar executar uma suspending function (coroutine) ao entrar na composição ou quando uma chave mudar. | Buscar dados de uma API ao abrir a tela; iniciar um timer. |
+| `DisposableEffect(key)` | Precisar registrar um recurso que exige limpeza (dispose) ao sair da composição. | Adicionar/remover um `LifecycleObserver`; registrar um listener de sensor. |
+| `SideEffect` | Precisar sincronizar estado do Compose com código externo (não-Compose) a cada recomposição bem-sucedida. | Atualizar uma biblioteca de analytics com um valor de estado atual. |
+| `rememberUpdatedState(value)` | Tiver um callback ou valor que pode mudar, mas é usado dentro de um efeito de longa duração que não deve ser reiniciado. | Manter referência atualizada de um `onTick` lambda dentro de um `LaunchedEffect(Unit)`. |
 
 Exemplo:
 ```kotlin
@@ -214,10 +233,10 @@ fun HomeScreen(onNavigateDetail: (Int) -> Unit, onOpenSettings: () -> Unit) {
 ```
 
 ## 12. Checklist Rápido
-- Activity mínima com setContent? OK
-- Usando Navigation Compose? OK
-- Evitou lógica pesada na Activity? OK
-- Intents apenas para funcionalidades externas? OK
-- Lifecycle observado via efeitos? OK
+- **Activity mínima com `setContent`?** — A Activity deve conter apenas a chamada `setContent { ... }` e configurações essenciais (ex: tema, permissões). Toda lógica de UI fica nos composables e toda lógica de negócio fica no ViewModel. Isso mantém a Activity leve e testável.
+- **Usando Navigation Compose?** — Navegar entre telas com `NavHost` e `NavController` evita a complexidade de múltiplas Activities ou Fragments. Garante navegação declarativa, type-safe e integrada ao ciclo de vida do Compose.
+- **Evitou lógica pesada na Activity?** — Colocar lógica de negócio ou chamadas de rede na Activity gera código difícil de testar e viola o princípio de separação de responsabilidades. Mova tudo para ViewModels e repositórios.
+- **Intents apenas para funcionalidades externas?** — Intents devem ser usados para interagir com outros apps ou componentes do sistema (câmera, configurações, compartilhamento). Para navegação interna, prefira Navigation Compose — é mais seguro e previsível.
+- **Lifecycle observado via efeitos?** — Em vez de sobrescrever callbacks de ciclo de vida diretamente, use `DisposableEffect` com `LifecycleObserver` dentro dos composables. Isso mantém o código reativo, desacoplado e com limpeza automática.
 
 Concluindo: compreender componentes clássicos (Activity/Fragment/Intent) permanece vital, mas em novos projetos Compose foque em uma Activity, navegação declarativa, efeitos lifecycle-aware e interoperabilidade controlada.
