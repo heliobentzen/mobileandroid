@@ -12,7 +12,7 @@ Em Jetpack Compose não usamos `RecyclerView`, `ListAdapter` ou `DiffUtil`. A re
 - **`LazyColumn`**: Equivalente moderno ao RecyclerView para listas verticais.
 - **`items()`**: Emite cada item da lista; aceita `key` para estabilidade.
 - **Estado**: Use `remember { mutableStateListOf<T>() }` ou `var list by remember { mutableStateOf(listOf<T>()) }`.
-- **Diferenças**: Compose reconcilia automaticamente o que mudou; chaves ajudam a preservar identidade visual.
+- **Por que chaves importam?**: Quando a lista muda (itens reordenados, removidos ou inseridos), o Compose precisa de chaves para distinguir cada item de forma única. Sem chaves, o Compose identifica os itens apenas pela posição no índice — isso pode causar perda de posição de scroll, estados internos (como campos de texto preenchidos) associados ao item errado, e animações quebradas. Com chaves estáveis (ex.: `key = { it.id }`), o Compose rastreia a identidade de cada item corretamente, mesmo quando a ordem muda.
 - **Animações**: Use `Modifier.animateItemPlacement()` (opcional) para animações de reposicionamento.
 
 ---
@@ -104,6 +104,19 @@ fun AnimatedUserList() {
 
 1. **Use chaves estáveis**:
    - Sempre forneça uma chave única para cada item em `LazyColumn` para evitar problemas de desempenho.
+
+   ❌ Sem chave — Compose usa o índice e pode confundir itens ao reordenar:
+   ```kotlin
+   items(users) { user ->
+       UserItem(user = user)
+   }
+   ```
+   ✅ Com chave estável — Compose preserva identidade, scroll e estado de cada item:
+   ```kotlin
+   items(users, key = { it.id }) { user ->
+       UserItem(user = user)
+   }
+   ```
 
 2. **Gerencie estado corretamente**:
    - Use `remember` para manter o estado local e `ViewModel` para estado compartilhado.
