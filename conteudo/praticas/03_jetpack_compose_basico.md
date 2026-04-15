@@ -373,5 +373,5 @@ fun ListaDeCompras() {
 
 ## Próximos Passos
 
-- Revise o módulo `06_jetpackcompose.md` para aprofundar temas como State Hoisting e Theming.
+- Revise o módulo `07_jetpackcompose.md` para aprofundar temas como State Hoisting e Theming.
 - Avance para a prática de MVVM (`04_mvvm_stateflow.md`) para aprender a separar lógica da interface.
