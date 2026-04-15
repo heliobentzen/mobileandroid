@@ -1,42 +1,46 @@
-# Navegação Segura e Testável com Navigation Component + Safe Args (Jetpack Compose)
+# Navegação com Jetpack Compose
 
-Objetivo: Mostrar um fluxo simples com passagem segura de argumentos e fácil testabilidade usando Navigation Component. Observação: O plugin Safe Args gera classes para grafos XML (Fragment/Activity). Em projetos 100% Compose (navigation-compose) ele não gera código; nesse caso, oferecemos duas abordagens:
-
-1. XML + Safe Args: Usa um grafo XML para gerar Directions e chama composables dentro de um Fragment/Activity.
-2. Compose puro: Emula segurança de tipos com rotas estruturadas (sealed classes) ou wrappers de argumentos.
-
-Abaixo: opção 2 (Compose puro) focada em testabilidade e segurança manual dos tipos.
-
-## Benefícios Resumidos
-- Segurança ao passar dados (evita ClassCastException).
-- Navegação declarativa com rotas centralizadas.
-- Facilidade de teste: NavHostController substituível em testes.
-- Extensível para deep links.
+Neste módulo você aprenderá a navegar entre telas em um app Android usando a biblioteca
+**Navigation Compose**. Vamos construir exemplos passo a passo: primeiro um fluxo simples
+(Home → Detalhe), depois um exercício de Login e, por fim, uma barra de navegação inferior.
 
 ---
 
-## Dependências (build.gradle.kts - módulo)
+## Por que usar o Navigation Component?
+
+Em apps com várias telas, gerenciar manualmente qual tela exibir se torna complexo e propenso
+a erros. O **Navigation Component** resolve isso oferecendo:
+
+| Benefício | O que significa na prática |
+|---|---|
+| **Rotas centralizadas** | Todas as telas ficam listadas em um único lugar, facilitando manutenção. |
+| **Passagem segura de dados** | Argumentos são declarados com tipo definido, evitando erros em tempo de execução. |
+| **Back stack automático** | O botão "voltar" funciona corretamente sem código adicional. |
+| **Testabilidade** | O `NavHostController` pode ser substituído em testes para verificar a navegação. |
+| **Deep links** | Suporte nativo para abrir telas específicas via links externos. |
+
+---
+
+## Quando usar Intents vs Navigation Compose?
+
+- **Navigation Compose** — para navegar entre telas **dentro** do seu app (ex: lista → detalhes).
+- **Intents** — para abrir **outros apps** ou o sistema (ex: navegador, câmera, compartilhamento).
+
+> **Regra prática:** tela do seu app → Navigation Compose. Outro app ou sistema → Intent.
+
+---
+
+## Dependências
+
+Adicione ao `build.gradle.kts` do módulo:
+
 ```kotlin
-plugins {
-    id("com.android.application")
-    kotlin("android")
-    kotlin("plugin.compose") // obrigatório a partir do Kotlin 2.0
-}
-
-android {
-    namespace = "com.example.app"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 24
-    }
-    buildFeatures { compose = true }
-    // Nota: kotlinCompilerExtensionVersion não é necessário com o plugin kotlin.compose
-}
-
 dependencies {
+    // Biblioteca de navegação para Compose
     val navVersion = "2.8.9"
     implementation("androidx.navigation:navigation-compose:$navVersion")
-    // BOM (Bill of Materials) gerencia todas as versões do Compose automaticamente
+
+    // BOM garante que todas as versões do Compose sejam compatíveis entre si
     implementation(platform("androidx.compose:compose-bom:2025.01.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
@@ -45,123 +49,135 @@ dependencies {
 }
 ```
 
----
+## Conceito principal: Rotas com Sealed Class
 
-## Estrutura de Projeto (Exemplo)
-```
-app/
-  build.gradle.kts
-  src/
-    main/
-      AndroidManifest.xml
-      java/
-        com/example/app/
-          MainActivity.kt              // setContent { AppNavHost() }
-          navigation/
-            AppRoute.kt                // sealed class rotas principais
-            AppNavHost.kt              // NavHost principal
-            login/
-              LoginRoute.kt            // sealed class rotas login
-              LoginNavHost.kt          // NavHost de login (opcional separado)
-          ui/
-            HomeScreen.kt
-            DetailScreen.kt
-            LoginScreen.kt
-            WelcomeScreen.kt
-      res/
-        values/
-          strings.xml
-    androidTest/
-      java/
-        com/example/app/
-          AppNavTest.kt                // teste instrumentado de navegação
-    test/
-      java/
-        com/example/app/
-          AppNavUnitTest.kt            // testes unitários (se usar helpers)
-```
-Observação: Separar navigation/ e ui/ mantém rotas centralizadas e telas desacopladas.
+A navegação em Compose funciona com **rotas** (strings que identificam cada tela).
+Para centralizar os caminhos e evitar erros de digitação, usamos uma **sealed class**:
 
----
-
-## Rotas Tipadas (Compose)
 ```kotlin
+// Cada objeto representa uma tela do app.
+// O parâmetro "path" é a string usada internamente pelo NavHost.
 sealed class AppRoute(val path: String) {
+    // Tela inicial — rota simples, sem argumentos
     data object Home : AppRoute("home")
+    // Tela de detalhe — recebe um argumento "itemId" na URL
     data object Detail : AppRoute("detail/{itemId}") {
+        // Função auxiliar que monta a rota com o valor real do argumento
         fun build(itemId: String) = "detail/$itemId"
+        // Constante para evitar digitar "itemId" em vários lugares
         const val ARG_ITEM_ID = "itemId"
     }
 }
 ```
 
-## NavHost
+**Por que sealed class?** O compilador garante que todas as rotas estejam definidas em um
+único arquivo. Se você esquecer de tratar uma rota, o IDE avisa.
+
+---
+
+## Passo 1: Configurar o NavHost
+
+O `NavHost` troca as telas de acordo com a rota atual:
+
 ```kotlin
 @Composable
-fun AppNavHost(navController: NavHostController = rememberNavController()) {
+fun AppNavHost(
+    navController: NavHostController = rememberNavController() // Substituível em testes
+) {
     NavHost(navController, startDestination = AppRoute.Home.path) {
+        // Registra a tela Home na rota "home"
         composable(AppRoute.Home.path) {
+            // Passa callback — a tela não conhece o NavController (boa prática)
             HomeScreen(
                 onOpenDetail = { id -> navController.navigate(AppRoute.Detail.build(id)) }
             )
         }
+        // Registra a tela Detail na rota "detail/{itemId}"
         composable(
             route = AppRoute.Detail.path,
-            arguments = listOf(navArgument(AppRoute.Detail.ARG_ITEM_ID) { type = NavType.StringType })
+            arguments = listOf( // Declara argumento do tipo String
+                navArgument(AppRoute.Detail.ARG_ITEM_ID) { type = NavType.StringType }
+            )
         ) { backStackEntry ->
-            val itemId = backStackEntry.arguments?.getString(AppRoute.Detail.ARG_ITEM_ID) ?: ""
+            val itemId = backStackEntry.arguments // Extrai o argumento da rota
+                ?.getString(AppRoute.Detail.ARG_ITEM_ID) ?: ""
             DetailScreen(itemId)
         }
     }
 }
 ```
 
-## Telas
+## Passo 2: Criar as Telas
+
 ```kotlin
 @Composable
 fun HomeScreen(onOpenDetail: (String) -> Unit) {
-    Button(onClick = { onOpenDetail("123-ABC") }) {
+    Button(onClick = { onOpenDetail("123-ABC") }) { // Navega passando um ID
         Text("Ir para Detalhes")
     }
 }
 
 @Composable
 fun DetailScreen(itemId: String) {
-    Text("Detalhes do item: $itemId")
+    Text("Detalhes do item: $itemId") // Exibe o argumento recebido
 }
 ```
 
 ---
 
-## Testabilidade
-- Use createAndroidComposeRule e um NavController fake ou real.
-- Verifique rotas com navController.currentBackStackEntry?.
-- Rotas seladas evitam strings mágicas dispersas.
+## Passo 3: Chamar na MainActivity
 
-Exemplo de teste (instrumentado):
+```kotlin
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { AppNavHost() } // Raiz da UI em Compose
+    }
+}
+```
+
+## Testando a navegação
+
+Testes instrumentados verificam se clicar em um botão realmente muda de tela:
+
 ```kotlin
 @get:Rule
 val composeRule = createAndroidComposeRule<ComponentActivity>()
 
 @Test
 fun navegaParaDetalhe() {
+    // Renderiza o NavHost completo
     composeRule.setContent { AppNavHost() }
+    // Simula o clique no botão da HomeScreen
     composeRule.onNodeWithText("Ir para Detalhes").performClick()
+    // Verifica se a DetailScreen apareceu com o argumento correto
     composeRule.onNodeWithText("Detalhes do item: 123-ABC").assertExists()
 }
 ```
 
----
+## Exercício Prático: Fluxo de Login
 
-## Exercício Prático (Login -> Welcome)
-Fluxo:
-1. LoginScreen (TextField + Button).
-2. WelcomeScreen (exibe nome).
+**Objetivo:** criar um fluxo com duas telas — `LoginScreen` (campo de texto + botão) e
+`WelcomeScreen` (exibe o nome digitado).
 
-Rotas:
+### Dicas (tente resolver antes de ver o código)
+
+1. Crie uma sealed class `LoginRoute` com duas rotas: `Login` (sem argumentos) e
+   `Welcome` (com argumento `username`).
+2. Crie o `LoginNavHost` registrando as duas rotas. Na rota `Welcome`, extraia o
+   argumento `username` do `backStackEntry`.
+3. Na `LoginScreen`, use `remember { mutableStateOf("") }` para guardar o texto digitado
+   e passe-o via callback quando o botão for clicado.
+4. Na `WelcomeScreen`, apenas exiba o nome recebido como parâmetro.
+
+### Solução comentada
+
+**Rotas:**
 ```kotlin
 sealed class LoginRoute(val path: String) {
+    // Tela de login — ponto de entrada do fluxo
     data object Login : LoginRoute("login")
+    // Tela de boas-vindas — recebe o nome do usuário como argumento
     data object Welcome : LoginRoute("welcome/{username}") {
         fun build(username: String) = "welcome/$username"
         const val ARG_USERNAME = "username"
@@ -169,153 +185,97 @@ sealed class LoginRoute(val path: String) {
 }
 ```
 
-Host:
+**NavHost do fluxo de login:**
 ```kotlin
 @Composable
 fun LoginNavHost(navController: NavHostController = rememberNavController()) {
     NavHost(navController, startDestination = LoginRoute.Login.path) {
         composable(LoginRoute.Login.path) {
-            LoginScreen { name -> navController.navigate(LoginRoute.Welcome.build(name)) }
+            LoginScreen { name -> // Ao fazer login, navega passando o nome digitado
+                navController.navigate(LoginRoute.Welcome.build(name))
+            }
         }
         composable(
             route = LoginRoute.Welcome.path,
-            arguments = listOf(navArgument(LoginRoute.Welcome.ARG_USERNAME) { type = NavType.StringType })
+            arguments = listOf(
+                navArgument(LoginRoute.Welcome.ARG_USERNAME) { type = NavType.StringType }
+            )
         ) { entry ->
-            val user = entry.arguments?.getString(LoginRoute.Welcome.ARG_USERNAME).orEmpty()
+            // Extrai o username da rota; orEmpty() evita nulo
+            val user = entry.arguments
+                ?.getString(LoginRoute.Welcome.ARG_USERNAME).orEmpty()
             WelcomeScreen(user)
         }
     }
 }
 ```
 
-Login:
+**Tela de Login:**
 ```kotlin
 @Composable
 fun LoginScreen(onLogin: (String) -> Unit) {
-    var text by remember { mutableStateOf("") }
+    var text by remember { mutableStateOf("") } // Estado local do campo de texto
     Column {
-        TextField(value = text, onValueChange = { text = it }, label = { Text("Nome") })
-        Button(enabled = text.isNotBlank(), onClick = { onLogin(text) }) {
+        TextField( // Campo controlado pelo estado "text"
+            value = text,
+            onValueChange = { text = it },
+            label = { Text("Nome") }
+        )
+        Button( // Desabilitado enquanto o campo estiver vazio
+            enabled = text.isNotBlank(),
+            onClick = { onLogin(text) }
+        ) {
             Text("Entrar")
         }
     }
 }
 ```
 
-Welcome:
+**Tela de Boas-vindas:**
 ```kotlin
 @Composable
 fun WelcomeScreen(username: String) {
-    Text("Bem-vindo, $username")
+    // Exibe mensagem personalizada com o nome recebido
+    Text("Bem-vindo, $username!")
 }
 ```
 
----
+## Bottom Navigation (Barra de Navegação Inferior)
 
-# Navegação com Bottom Navigation e Jetpack Compose
+Apps com seções principais (Início, Busca, Perfil) costumam usar uma barra inferior.
+Reutilizamos o padrão de sealed class para manter a consistência.
 
-Neste exemplo, vamos implementar uma navegação com `BottomNavigation` associada a três telas diferentes usando o Jetpack Compose.
-
----
-
-## Passo 1: Configurar as Rotas
-
-Defina as rotas para as telas no aplicativo:
-
+### Rotas com ícone e título
 ```kotlin
-sealed class Screen(val route: String, val title: String, val icon: Int) {
-    object Home : Screen("home", "Home", R.drawable.ic_home)
-    object Search : Screen("search", "Search", R.drawable.ic_search)
-    object Profile : Screen("profile", "Profile", R.drawable.ic_profile)
+// Cada aba possui rota, título exibido na barra e ícone correspondente
+sealed class TabRoute(val path: String, val titulo: String, val icone: Int) {
+    data object Inicio  : TabRoute("inicio",  "Início",  R.drawable.ic_home)
+    data object Busca   : TabRoute("busca",   "Busca",   R.drawable.ic_search)
+    data object Perfil  : TabRoute("perfil",  "Perfil",  R.drawable.ic_profile)
 }
 ```
 
----
-
-## Passo 2: Criar as Telas
-
-Implemente os composables para cada tela:
-
+### Barra de Navegação
 ```kotlin
 @Composable
-fun HomeScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Tela Home")
-    }
-}
+fun BarraNavegacao(navController: NavController) {
+    val abas = listOf(TabRoute.Inicio, TabRoute.Busca, TabRoute.Perfil)
 
-@Composable
-fun SearchScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Tela Search")
-    }
-}
-
-@Composable
-fun ProfileScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Tela Profile")
-    }
-}
-```
-
----
-
-## Passo 3: Configurar o NavHost
-
-Use o `NavHost` para gerenciar as rotas:
-
-```kotlin
-@Composable
-fun NavigationGraph(navController: NavHostController) {
-    NavHost(navController, startDestination = Screen.Home.route) {
-        composable(Screen.Home.route) { HomeScreen() }
-        composable(Screen.Search.route) { SearchScreen() }
-        composable(Screen.Profile.route) { ProfileScreen() }
-    }
-}
-```
-
----
-
-## Passo 4: Implementar o BottomNavigation
-
-Crie o componente de navegação inferior usando os componentes Material 3:
-
-```kotlin
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.res.painterResource
-import androidx.navigation.NavController
-import androidx.navigation.compose.currentBackStackEntryAsState
-
-@Composable
-fun BottomNavigationBar(navController: NavController) {
-    val items = listOf(
-        Screen.Home,
-        Screen.Search,
-        Screen.Profile
-    )
-
-    // NavigationBar é o componente Material 3 (substitui BottomNavigation do Material 2)
-    NavigationBar {
-        val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-
-        items.forEach { screen ->
+    NavigationBar { // Componente Material 3 para barra inferior
+        val rotaAtual = navController
+            .currentBackStackEntryAsState().value?.destination?.route
+        abas.forEach { aba ->
             NavigationBarItem(
-                icon = { Icon(painterResource(id = screen.icon), contentDescription = screen.title) },
-                label = { Text(screen.title) },
-                selected = currentRoute == screen.route,
+                icon = { Icon(painterResource(id = aba.icone), contentDescription = aba.titulo) },
+                label = { Text(aba.titulo) },
+                selected = rotaAtual == aba.path, // Destaca a aba ativa
                 onClick = {
-                    if (currentRoute != screen.route) {
-                        navController.navigate(screen.route) {
+                    if (rotaAtual != aba.path) {
+                        navController.navigate(aba.path) {
+                            // Volta até a tela inicial ao trocar de aba (evita empilhar)
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
+                            launchSingleTop = true  // Evita duplicar a mesma tela
+                            restoreState = true     // Restaura estado ao voltar
                         }
                     }
                 }
@@ -325,24 +285,25 @@ fun BottomNavigationBar(navController: NavController) {
 }
 ```
 
----
-
-## Passo 5: Integrar Tudo na MainActivity
-
-Configure a `MainActivity` para usar o `BottomNavigation` e o `NavHost`:
-
+### Integrando com Scaffold
 ```kotlin
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val navController = rememberNavController()
-
-            Scaffold(
-                bottomBar = { BottomNavigationBar(navController) }
+            Scaffold( // Organiza barra inferior + conteúdo
+                bottomBar = { BarraNavegacao(navController) }
             ) { innerPadding ->
-                Box(modifier = Modifier.padding(innerPadding)) {
-                    NavigationGraph(navController)
+                // innerPadding evita que o conteúdo fique atrás da barra
+                NavHost(
+                    navController,
+                    startDestination = TabRoute.Inicio.path,
+                    modifier = Modifier.padding(innerPadding)
+                ) {
+                    composable(TabRoute.Inicio.path) { TelaInicio() }
+                    composable(TabRoute.Busca.path)  { TelaBusca() }
+                    composable(TabRoute.Perfil.path)  { TelaPerfil() }
                 }
             }
         }
@@ -350,6 +311,20 @@ class MainActivity : ComponentActivity() {
 }
 ```
 
----
+## Nota: XML + Safe Args (projetos legados)
 
-Com isso, você terá um aplicativo com navegação inferior e três telas associadas. Cada botão na barra de navegação leva o usuário para a tela correspondente.
+Se você trabalhar em um projeto que ainda usa Fragments e XML, o plugin **Safe Args** gera
+classes de navegação a partir de um grafo XML (`nav_graph.xml`). Isso oferece segurança de
+tipos automaticamente. Porém, em projetos **100% Compose** (como neste curso), usamos
+`navigation-compose` com sealed classes, como visto acima.
+
+## Resumo
+
+| Conceito | Para que serve |
+|---|---|
+| `NavHost` | Componente que exibe a tela correspondente à rota ativa. |
+| `composable()` | Registra uma tela no grafo de navegação. |
+| `navArgument()` | Declara argumentos tipados em uma rota. |
+| `sealed class` | Centraliza todas as rotas, evitando strings soltas no código. |
+| `NavigationBar` | Barra inferior do Material 3 para navegação entre seções. |
+| `popUpTo` / `launchSingleTop` | Controlam o comportamento da pilha de telas ao navegar. |

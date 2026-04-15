@@ -45,9 +45,9 @@ import kotlinx.coroutines.launch
 class LoginViewModel : ViewModel() {
 
     private val _eventFlow = MutableSharedFlow<UiEvent>(
-        replay = 0,
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
+        replay = 0,                                // Não re-emite eventos antigos para novos coletores (essencial para one-shot)
+        extraBufferCapacity = 1,                   // Permite emit() sem suspender mesmo sem coletor ativo no momento
+        onBufferOverflow = BufferOverflow.DROP_OLDEST // Se o buffer estiver cheio, descarta o evento mais antigo
     )
     
     val eventFlow = _eventFlow.asSharedFlow()
@@ -79,8 +79,6 @@ import kotlinx.coroutines.flow.collect
 @Composable
 fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
     val context = LocalContext.current
-    val eventFlow = viewModel.eventFlow.collectAsState(initial = null)
-
     LaunchedEffect(Unit) {
         viewModel.eventFlow.collect { event ->
             when (event) {
