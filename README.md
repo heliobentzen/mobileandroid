@@ -1,100 +1,116 @@
-# 📱 Desenvolvimento Mobile Android
+# Desenvolvimento Mobile Android
 
-Este documento é o guia completo para a trilha de Desenvolvimento Mobile Android. Ele detalha o currículo, as tecnologias e os projetos que transformarão você em um desenvolvedor Android capaz de criar aplicativos profissionais, desde o conceito até a publicação.
+Trilha de estudos para desenvolvimento Android — do Kotlin básico até a publicação na Play Store.
 
----
+Stack principal: Jetpack Compose, MVVM, Room, Retrofit, Hilt, Coroutines/Flow.
 
-## 🎯 Objetivo Geral
-Formar o aluno para entregar um app Android profissional usando a stack estável mais difundida: Jetpack Compose, MVVM + Repository, Room, Retrofit, Hilt, Coroutines/Flow, testes fundamentais e pipeline de release.
+## Módulos
 
----
+### [Módulo 1 — Fundamentos Kotlin e Android](conteudo/modulo_01/)
 
-## 🧩 Módulos
+| Aula | Tema |
+|------|------|
+| [01 — Introdução](conteudo/modulo_01/01_intro.md) | Visão geral do curso |
+| [02 — Kotlin Essencial](conteudo/modulo_01/02_kotlin_essencial.md) | Tipos, null safety, data classes, lambdas |
+| [03 — Estrutura de Projeto](conteudo/modulo_01/03_estrutura_projeto.md) | Gradle, namespaces, build variants |
+| [04 — Activity](conteudo/modulo_01/04_activity.md) | Ciclo de vida |
+| [05 — Componentes Android](conteudo/modulo_01/05_components_android.md) | Fragments e componentes |
+| [06 — Intents](conteudo/modulo_01/06_intents.md) | Navegação entre Activities |
+| [07 — Jetpack Compose](conteudo/modulo_01/07_jetpackcompose.md) | `@Composable`, state, theming |
 
-### Módulo 1 - Fundamentos Kotlin e Android
-- **Kotlin Essencial**: Tipos, null safety, data classes, coleções, funções de extensão e lambdas.
-- **Estrutura de Projeto**: Gradle moderno, namespaces e build variants.
-- **Componentes Android**: Ciclo de vida de Activity/Fragment e uso de Intents.
-- **UI Moderna (Jetpack Compose)**: Introdução ao Jetpack Compose, `@Composable`, state (`remember`, state hoisting) e theming básico.
+Entrega parcial: tela estática com navegação básica entre Composables.
 
-**Entrega parcial**: Tela estática simples com navegação básica entre Composables.
+### [Módulo 2 — Arquitetura MVVM e UI Dinâmica](conteudo/modulo_02/)
 
-### Módulo 2 - Arquitetura MVVM e UI Dinâmica
-- **MVVM**: `ViewModel` + `StateFlow` (`UiState` com `sealed class`) e fluxo unidirecional de dados.
-- **Eventos One-Shot**: `SharedFlow` para navegação/toasts.
-- **Listas**: `LazyColumn` com chaves estáveis para listas eficientes e reativos.
-- **Navegação**: `Navigation Component` + `Safe Args` para navegação segura e testável.
-- **Acessibilidade**: `contentDescription`, foco, labels e strings externalizadas.
+| Aula | Tema |
+|------|------|
+| [01 — MVVM](conteudo/modulo_02/01_mvvm.md) | ViewModel + StateFlow, UiState |
+| [02 — Eventos One-Shot](conteudo/modulo_02/02_eventos_oneshot.md) | SharedFlow para navegação/toasts |
+| [03 — Listas](conteudo/modulo_02/03_listas.md) | LazyColumn com chaves estáveis |
+| [04 — Navegação](conteudo/modulo_02/04_navegacao.md) | Navigation Component + Safe Args |
+| [05 — Acessibilidade](conteudo/modulo_02/05_acessibilidade.md) | contentDescription, foco, labels |
 
-**Entrega parcial**: App com lista de dados locais (mock) e tela de detalhes, usando a arquitetura MVVM.
+Entrega parcial: app com lista (mock) e tela de detalhes usando MVVM.
 
-### Módulo 3 - Persistência e Networking
-- **Coroutines Avançados**: `Dispatchers`, concorrência estruturada e cancelamento.
-- **Networking (Retrofit + OkHttp)**: `suspend functions` e tratamento de erros/timeouts.
-- **Persistência**: `Room` (Entity, DAO, migrations básicas) e `DataStore` para preferências.
-- **Repository Pattern**: Combinar fontes de dados local e remota (padrão `NetworkBoundResource` simplificado).
+### [Módulo 3 — Persistência e Networking](conteudo/modulo_03/)
 
-**Entrega parcial**: App consumindo uma API real, com cache local em Room para funcionamento offline.
+| Aula | Tema |
+|------|------|
+| [01 — Coroutines](conteudo/modulo_03/01_coroutines.md) | Dispatchers, concorrência estruturada |
+| [02 — Retrofit](conteudo/modulo_03/02_retrofit.md) | suspend functions, tratamento de erros |
+| [03 — Room](conteudo/modulo_03/03_persistencia_room.md) | Entity, DAO, migrations |
+| [04 — Repository](conteudo/modulo_03/04_repository.md) | Fontes local + remota combinadas |
 
-### Módulo 4 - Testes e Publicação
-- **Testes Essenciais**: Testes de unidade para `ViewModel`/`UseCases` (MockK/Turbine) e 1–2 testes de UI com Compose.
-- **Publicação Mínima**: Gerar AAB assinado localmente e checklist do Play Console (trilha interna).
+Entrega parcial: app consumindo API real com cache local em Room.
 
-**Entrega final**: Tela principal refatorada para Compose (pelo menos a lista), ViewModel testado, build AAB pronto e README com instruções de release.
+### [Módulo 4 — Testes e Publicação](conteudo/modulo_04/)
 
-## 🛠️ Stack de Tecnologias
-| Tecnologia | Uso Principal |
-|------------|---------------|
+| Aula | Tema |
+|------|------|
+| [01 — Testes](conteudo/modulo_04/01_testes.md) | Unitários (MockK/Turbine) e UI (Compose) |
+| [02 — Publicação](conteudo/modulo_04/02_publicacao.md) | AAB assinado, checklist Play Console |
+
+Entrega final: app com Compose, ViewModel testado, AAB pronto.
+
+## Práticas
+
+Exercícios guiados passo a passo:
+
+| # | Prática |
+|---|---------|
+| 01 | [Compose + Navigation](conteudo/praticas/01_compose_navigation.md) |
+| 02 | [Kotlin Básico](conteudo/praticas/02_kotlin_basico.md) |
+| 03 | [Jetpack Compose Básico](conteudo/praticas/03_jetpack_compose_basico.md) |
+| 04 | [MVVM + StateFlow](conteudo/praticas/04_mvvm_stateflow.md) |
+| 05 | [Listas com LazyColumn](conteudo/praticas/05_listas_lazy_column.md) |
+| 06 | [Coroutines](conteudo/praticas/06_coroutines.md) |
+| 07 | [Room — Persistência](conteudo/praticas/07_room_persistencia.md) |
+| 08 | [Retrofit — API](conteudo/praticas/08_retrofit_api.md) |
+
+## Projetos de exemplo
+
+| Projeto | Descrição |
+|---------|-----------|
+| [projeto-flow](src/projeto-flow/) | App com ViewModel, StateFlow e navegação entre Activities |
+| [projeto-room](src/projeto-room/) | Persistência local com Room (Entity, DAO, Database) |
+| [NavHost.kt](src/NavHost.kt) | Exemplo de navegação com Compose |
+
+## Stack
+
+| Tecnologia | Uso |
+|------------|-----|
 | Kotlin | Linguagem |
-| Jetpack Compose | Camada de UI moderna |
-| Material Components | Estilos e componentes visuais |
-| LazyColumn | Listas performáticas |
-| Navigation Component | Navegação declarativa entre telas |
+| Jetpack Compose | UI |
+| Material Components | Estilos e componentes |
+| Navigation Component | Navegação entre telas |
 | Coroutines + Flow | Concorrência e reatividade |
-| Room | Persistência local estruturada |
-| DataStore | Armazenamento leve de preferências |
-| Retrofit + OkHttp + Gson | Consumo de APIs REST |
+| Room | Persistência local |
+| DataStore | Preferências |
+| Retrofit + OkHttp + Gson | APIs REST |
 | Hilt | Injeção de dependências |
-| Coil | Carregamento de imagens |
+| Coil | Imagens |
 | JUnit / Mockito / Espresso | Testes |
-| Git + GitHub | Versionamento e colaboração |
 
----
+## Estrutura sugerida de projeto
 
-## 📦 Estrutura (sugerida para projetos de exemplo)
 ```
 app/
- ┣ data/        (datasources remotos, locais, dtos, repos)
- ┣ domain/      (models de negócio, use cases - opcional se simplificar)
- ┣ ui/          (activities, fragments, adapters, viewmodels)
- ┣ di/          (módulos Hilt)
- ┣ core/        (utils, Result wrappers, extensions)
- ┗ build.gradle.kts
+ ├── data/       # datasources, dtos, repos
+ ├── domain/     # models, use cases
+ ├── ui/         # activities, composables, viewmodels
+ ├── di/         # módulos Hilt
+ ├── core/       # utils, extensions
+ └── build.gradle.kts
 ```
 
----
+## Critérios de conclusão
 
-## 📂 Organização do Material
+- App roda offline com cache coerente
+- Erros tratados e visíveis ao usuário
+- Fluxo de login (mock ou real)
+- Pipeline de build + testes configurado
+- README com instruções de setup
 
-```
-conteudo/
- ┣ modulo_01/   (Fundamentos: Kotlin, estrutura, Activity, Compose)
- ┣ modulo_02/   (Arquitetura: MVVM, listas, navegação, acessibilidade)
- ┣ modulo_03/   (Dados: Coroutines, Retrofit, Room, Repository)
- ┣ modulo_04/   (Finalização: Testes e Publicação)
- ┗ praticas/    (Exercícios guiados passo a passo)
-src/            (Exemplos de código Kotlin)
-```
+## Extensões opcionais
 
----
-
-## 🧪 Critérios de Conclusão
-- App final roda offline com cache coerente
-- Tratamento de erros visível ao usuário
-- Fluxo de login ou equivalente simples (mock ou real)
-- Pipeline automatizado (build + testes) configurado
-- Documentação curta de setup no README do projeto final
-
----
-
-Opcional / Extensões: Paging 3, WorkManager, Firebase (Auth, Firestore), Crashlytics, Analytics, Compose Multiplatform.
+Paging 3 · WorkManager · Firebase (Auth, Firestore) · Crashlytics · Analytics · Compose Multiplatform
