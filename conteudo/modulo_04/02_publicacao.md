@@ -21,6 +21,18 @@ Antes de gerar o build de release, verifique:
 
 ## 2. Configurando a Assinatura
 
+### Por que assinar o app?
+
+A assinatura digital é obrigatória por três motivos principais:
+
+- **Verificação de identidade**: garante que o app foi publicado por você (ou pela sua organização), e não por um terceiro mal-intencionado.
+- **Proteção contra adulteração**: se alguém modificar o APK/AAB após a assinatura, o sistema detecta que o conteúdo foi alterado e impede a instalação.
+- **Autenticidade de atualizações**: o Android só permite atualizar um app instalado se a nova versão tiver a mesma assinatura — isso impede que outra pessoa publique uma atualização falsa do seu app.
+
+Em resumo, sem assinatura o Google Play rejeita o upload e o Android se recusa a instalar o app.
+
+---
+
 O Google Play exige que todo app seja assinado digitalmente. Há dois cenários:
 
 ### Opção A: Assinatura Local (Keystore)
@@ -62,9 +74,62 @@ android {
 
 > **Importante**: Nunca commite senhas diretamente no código. Use variáveis de ambiente ou um arquivo `local.properties` (listado no `.gitignore`).
 
+#### Padrão seguro com `keystore.properties`
+
+Na prática, a forma mais comum de proteger as credenciais em projetos Android é criar um arquivo `keystore.properties` na raiz do projeto (ao lado do `build.gradle.kts` do módulo raiz):
+
+```properties
+# keystore.properties — NÃO commitar este arquivo!
+storeFile=meu-app-release.jks
+storePassword=minhaSenhaSegura
+keyAlias=meu-app
+keyPassword=minhaSenhaDeChave
+```
+
+Em seguida, adicione a entrada no `.gitignore` para garantir que o arquivo nunca seja versionado:
+
+```gitignore
+# Credenciais da keystore
+keystore.properties
+```
+
+Por fim, leia o arquivo no `build.gradle.kts` usando a classe `Properties`:
+
+```kotlin
+import java.util.Properties
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
+android {
+    signingConfigs {
+        create("release") {
+            storeFile = file(keystoreProperties["storeFile"] as String)
+            storePassword = keystoreProperties["storePassword"] as String
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+        }
+    }
+}
+```
+
+Dessa forma, cada desenvolvedor cria seu próprio `keystore.properties` localmente, e o repositório permanece livre de credenciais.
+
 ### Opção B: Play App Signing (Recomendado)
 
-O Google gerencia a chave de assinatura de produção. Você assina com uma chave de upload e o Play Console re-assina para distribuição. Vantagem: se perder a chave de upload, o Google pode gerar uma nova.
+O Google gerencia a chave de assinatura de produção. O fluxo funciona assim:
+
+1. Você assina o AAB com a sua **chave de upload** (a keystore que você gerou localmente).
+2. Faz o upload do AAB assinado para o Google Play Console.
+3. O Google **re-assina** o app com a **chave de produção** gerenciada por ele.
+4. O usuário final recebe o app assinado com a chave de produção do Google.
+
+**Benefício prático**: se você perder a sua chave de upload (por exemplo, um HD corrompido), o Google pode gerar uma nova chave de upload para você — sem isso, você perderia o app e teria que publicar como um app completamente novo. Com o Play App Signing, a chave de produção fica segura nos servidores do Google e nunca é exposta.
+
+Para ativar, basta marcar a opção **"Permitir que o Google gerencie e proteja sua chave de assinatura do app"** ao criar a primeira release no Play Console.
 
 ---
 
@@ -104,14 +169,14 @@ Para publicar na Play Store (mesmo na trilha interna de testes):
 2. Preencha: nome, idioma padrão, tipo (app/jogo), gratuito/pago
 
 ### 4.3 Ficha da loja (Store Listing)
-| Campo | Requisito |
-|-------|-----------|
-| Título | Até 30 caracteres |
-| Descrição curta | Até 80 caracteres |
-| Descrição completa | Até 4000 caracteres |
-| Ícone | 512×512 px, PNG |
-| Feature graphic | 1024×500 px |
-| Screenshots | Mínimo 2, tamanho recomendado pelo console |
+| Campo | Requisito | Dicas e Exemplos |
+|-------|-----------|------------------|
+| Título | Até 30 caracteres | Claro e memorável. Ex: *"Meu Diário de Notas"*. Evite palavras genéricas como "app" ou "melhor". |
+| Descrição curta | Até 80 caracteres | Destaque o benefício principal. Ex: *"Organize suas anotações de aula de forma simples e rápida."* |
+| Descrição completa | Até 4000 caracteres | Comece com as funcionalidades mais importantes. Use listas e emojis com moderação para facilitar a leitura. |
+| Ícone | 512×512 px, PNG | Fundo simples, sem texto pequeno. Teste como fica em tamanho reduzido (48×48 px) — precisa ser reconhecível. |
+| Feature graphic | 1024×500 px | Imagem de destaque na Play Store. Use uma arte limpa com o nome do app e uma captura de tela ou ilustração. |
+| Screenshots | Mínimo 2, tamanho recomendado pelo console | Mostre as telas principais em ordem de importância. Adicione textos curtos explicando cada funcionalidade. |
 
 ### 4.4 Classificação de conteúdo
 - Preencha o questionário de classificação do IARC (obrigatório)
