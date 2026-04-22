@@ -123,7 +123,7 @@ intent.putExtra(DetalhesActivity.EXTRA_NOME, "Maria")
 ### 1. Navegação interna (moderno)
 
 Crie duas telas em Compose (`ListaScreen` e `DetalheScreen`) e navegue entre elas com `Navigation Compose`.
-💡 **Dica**: passe apenas o ID na rota (`detalhe/{id}`) e carregue os dados completos no destino.
+💡 **Dica**: passe apenas o ID na rota (`detalhe/{id}`) e carregue os dados completos no destino. Isso evita rotas longas/frágeis e mantém responsabilidades melhor separadas.
 
 ```kotlin
 // No NavHost:
@@ -151,7 +151,7 @@ val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
 ### 3. Desafio
 
 Crie um aplicativo com duas telas em Compose. Na primeira, o usuário insere um texto. Na segunda, o texto é exibido e pode ser compartilhado com outros aplicativos.
-💡 **Dica**: Use `Navigation Compose` para navegar entre telas internas e passe apenas um `id` na rota. O texto pode ser recuperado via `ViewModel`/repositório antes de compartilhar com `ACTION_SEND`.
+💡 **Dica**: Use `Navigation Compose` para navegar entre telas internas e passe apenas um `id` na rota. Em arquitetura MVVM, recupere o texto via `ViewModel`/repositório; em versão simples de estudo, use uma lista/mapa local indexada por esse `id` antes de compartilhar com `ACTION_SEND`.
 
 ```kotlin
 // Tela 1 — navegar para a rota da tela 2 passando apenas um id:
