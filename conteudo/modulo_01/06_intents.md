@@ -128,8 +128,8 @@ Crie duas telas em Compose (`ListaScreen` e `DetalheScreen`) e navegue entre ela
 ```kotlin
 // No NavHost:
 // composable("lista") { ListaScreen(onOpen = { id -> navController.navigate("detalhe/$id") }) }
-// composable("detalhe/{id}") { backStack ->
-//     val id = backStack.arguments?.getString("id").orEmpty()
+// composable("detalhe/{id}") { backStackEntry ->
+//     val id = backStackEntry.arguments?.getString("id").orEmpty()
 //     DetalheScreen(id)
 // }
 ```
@@ -154,7 +154,7 @@ Crie um aplicativo com duas telas em Compose. Na primeira, o usuário insere um 
 💡 **Dica**: Use `Navigation Compose` para navegar entre telas internas e `ACTION_SEND` para compartilhar externamente.
 
 ```kotlin
-// Tela 1 — navegar para a rota da tela 2:
+// Tela 1 — navegar para a rota da tela 2 (Uri.encode evita quebrar a rota com espaços/símbolos):
 // navController.navigate("exibicao/${Uri.encode(textoDigitado)}")
 // Tela 2 — botão de compartilhar com outro app:
 // val compartilharIntent = Intent(Intent.ACTION_SEND).apply {
