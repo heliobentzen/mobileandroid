@@ -128,8 +128,11 @@ Crie duas telas em Compose (`ListaScreen` e `DetalheScreen`) e navegue entre ela
 ```kotlin
 // No NavHost:
 // composable("lista") { ListaScreen(onOpen = { id -> navController.navigate("detalhe/$id") }) }
-// composable("detalhe/{id}") { backStackEntry ->
-//     val id = backStackEntry.arguments?.getString("id").orEmpty()
+// composable(
+//     route = "detalhe/{id}",
+//     arguments = listOf(navArgument("id") { type = NavType.StringType })
+// ) { backStackEntry ->
+//     val id = requireNotNull(backStackEntry.arguments?.getString("id"))
 //     DetalheScreen(id)
 // }
 ```
@@ -151,7 +154,7 @@ val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
 ### 3. Desafio
 
 Crie um aplicativo com duas telas em Compose. Na primeira, o usuário insere um texto. Na segunda, o texto é exibido e pode ser compartilhado com outros aplicativos.
-💡 **Dica**: Use `Navigation Compose` para navegar entre telas internas e passe apenas um `id` na rota. Em arquitetura MVVM, recupere o texto via `ViewModel`/repositório; em versão simples de estudo, use uma lista/mapa local indexada por esse `id` antes de compartilhar com `ACTION_SEND`.
+💡 **Dica**: Use `Navigation Compose` para navegar entre telas internas e passe apenas um `id` na rota. Em arquitetura MVVM, recupere o texto via `ViewModel`/repositório; em versão simples de estudo, mantenha uma estrutura em memória (ex.: `val mensagens = hashMapOf("1" to "Olá")`) e busque o conteúdo por `id` antes de compartilhar com `ACTION_SEND`.
 
 ```kotlin
 // Tela 1 — navegar para a rota da tela 2 passando apenas um id:
