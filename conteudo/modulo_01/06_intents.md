@@ -1,10 +1,16 @@
-# Intents no Android
+# Intents no Android Moderno
 
 `Intents` são objetos de mensagem usados para solicitar uma ação de outro componente de aplicativo. Eles são um dos conceitos fundamentais do Android, servindo como o "cimento" que liga Activities, Services e Broadcast Receivers.
 
 ## Por que Intents existem?
 
 No Android, cada aplicativo roda em seu próprio processo isolado por segurança. Os componentes não se comunicam diretamente — o sistema operacional atua como intermediário, e as **Intents são o mecanismo de mensageria** que conecta esses componentes. Pense em uma Intent como um **envelope**: você descreve *o que* deseja fazer (a ação) e, opcionalmente, *com quais dados*. O Android encontra o destinatário correto e entrega a mensagem.
+
+## Fluxo recomendado em apps atuais
+
+- **Navegação interna (telas do próprio app):** use **Navigation Compose**.
+- **Integração com sistema/outros apps:** use **Intents** (implícitas na maioria dos casos).
+- **Intent explícita interna:** mantenha para casos pontuais de interoperabilidade (módulos legados, entrada específica por Activity).
 
 ## Tipos de Intents
 
@@ -13,26 +19,25 @@ No Android, cada aplicativo roda em seu próprio processo isolado por segurança
 
 ---
 
-## Exemplo 1: Intent Explícita
+## Exemplo 1: Intent Explícita (caso pontual)
 
-**Cenário**: Navegar da `MainActivity` para uma `DetalhesActivity`, enviando dados.
+**Cenário**: Abrir uma `SupportActivity` interna para um fluxo legado específico.
 
 **1. Na `MainActivity.kt`**
 
 ```kotlin
-// Cria uma Intent explícita indicando a Activity de destino
-val intent = Intent(this, DetalhesActivity::class.java)
-// putExtra anexa dados ao "envelope" da Intent (chave → valor)
-intent.putExtra("chave", "valor")
-// Solicita ao sistema que inicie a DetalhesActivity
+// Intent explícita para um componente específico do próprio app
+val intent = Intent(this, SupportActivity::class.java)
+// Dados de contexto para o fluxo legado
+intent.putExtra("source", "help_center")
 startActivity(intent)
 ```
 
-**2. Na `DetalhesActivity.kt`**
+**2. Na `SupportActivity.kt`**
 
 ```kotlin
 // Recupera o valor enviado pela Activity anterior usando a mesma chave
-val valor = intent.getStringExtra("chave") // retorna null se a chave não existir
+val source = intent.getStringExtra("source") // retorna null se a chave não existir
 ```
 ---
 
@@ -115,19 +120,18 @@ intent.putExtra(DetalhesActivity.EXTRA_NOME, "Maria")
 
 ## Exercícios Práticos
 
-### 1. Intent Explícita
+### 1. Navegação interna (moderno)
 
-Crie uma `Activity` que receba um nome via `Intent` e exiba uma saudação personalizada.
-💡 **Dica**: Use `putExtra` para enviar o nome e `getStringExtra` para recuperá-lo.
+Crie duas telas em Compose (`ListaScreen` e `DetalheScreen`) e navegue entre elas com `Navigation Compose`.
+💡 **Dica**: passe apenas o ID na rota (`detalhe/{id}`) e carregue os dados completos no destino.
 
 ```kotlin
-// Na Activity de origem:
-val intent = Intent(this, SaudacaoActivity::class.java)
-intent.putExtra("nome", /* texto capturado do usuário */)
-startActivity(intent)
-// Na SaudacaoActivity — recupere o nome e monte a saudação:
-// val nome = intent.getStringExtra("nome")
-// Exiba: "Olá, $nome! Bem-vindo(a)!"
+// No NavHost:
+// composable("lista") { ListaScreen(onOpen = { id -> navController.navigate("detalhe/$id") }) }
+// composable("detalhe/{id}") { backStack ->
+//     val id = backStack.arguments?.getString("id").orEmpty()
+//     DetalheScreen(id)
+// }
 ```
 
 ### 2. Intent Implícita
@@ -146,17 +150,16 @@ val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
 
 ### 3. Desafio
 
-Crie um aplicativo com duas telas. Na primeira, o usuário insere um texto. Na segunda, o texto é exibido e pode ser compartilhado com outros aplicativos.
-💡 **Dica**: Use uma intent explícita para navegar entre as telas e uma implícita (`ACTION_SEND`) para compartilhar.
+Crie um aplicativo com duas telas em Compose. Na primeira, o usuário insere um texto. Na segunda, o texto é exibido e pode ser compartilhado com outros aplicativos.
+💡 **Dica**: Use `Navigation Compose` para navegar entre telas internas e `ACTION_SEND` para compartilhar externamente.
 
 ```kotlin
-// Tela 1 — enviar o texto digitado para a Tela 2:
-// val intent = Intent(this, ExibicaoActivity::class.java)
-// intent.putExtra(ExibicaoActivity.EXTRA_TEXTO, textoDigitado)
-// Tela 2 — botão de compartilhar:
+// Tela 1 — navegar para a rota da tela 2:
+// navController.navigate("exibicao/${Uri.encode(textoDigitado)}")
+// Tela 2 — botão de compartilhar com outro app:
 // val compartilharIntent = Intent(Intent.ACTION_SEND).apply {
 //     type = "text/plain"
-//     putExtra(Intent.EXTRA_TEXT, textoRecebido)
+//     putExtra(Intent.EXTRA_TEXT, textoDaRota)
 // }
 // startActivity(Intent.createChooser(compartilharIntent, "Compartilhar via"))
 ```

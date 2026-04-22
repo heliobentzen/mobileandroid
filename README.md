@@ -15,7 +15,7 @@ Stack principal: Jetpack Compose, MVVM, Room, Retrofit, Hilt, Coroutines/Flow.
 | [03 — Estrutura de Projeto](conteudo/modulo_01/03_estrutura_projeto.md) | Gradle, namespaces, build variants |
 | [04 — Activity](conteudo/modulo_01/04_activity.md) | Ciclo de vida |
 | [05 — Componentes Android](conteudo/modulo_01/05_components_android.md) | Fragments e componentes |
-| [06 — Intents](conteudo/modulo_01/06_intents.md) | Navegação entre Activities |
+| [06 — Intents](conteudo/modulo_01/06_intents.md) | Integração com sistema e outros apps |
 | [07 — Jetpack Compose](conteudo/modulo_01/07_jetpackcompose.md) | `@Composable`, state, theming |
 
 Entrega parcial: tela estática com navegação básica entre Composables.
