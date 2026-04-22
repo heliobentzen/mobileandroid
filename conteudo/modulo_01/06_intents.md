@@ -12,6 +12,8 @@ No Android, cada aplicativo roda em seu próprio processo isolado por segurança
 - **Integração com sistema/outros apps:** use **Intents** (implícitas na maioria dos casos).
 - **Intent explícita interna:** mantenha para casos pontuais de interoperabilidade (módulos legados, entrada específica por Activity).
 
+`Navigation Compose` é a biblioteca Jetpack moderna para navegação entre telas do próprio app. Neste módulo usamos a regra prática; os detalhes de implementação aparecem no módulo 07.
+
 ## Tipos de Intents
 
 1. **Intents Explícitas**: Especificam o componente exato a ser iniciado (pelo nome da classe). Usadas para iniciar componentes **dentro do seu próprio aplicativo**.
@@ -123,7 +125,7 @@ intent.putExtra(DetalhesActivity.EXTRA_NOME, "Maria")
 ### 1. Navegação interna (moderno)
 
 Crie duas telas em Compose (`ListaScreen` e `DetalheScreen`) e navegue entre elas com `Navigation Compose`.
-💡 **Dica**: passe apenas o ID na rota (`detalhe/{id}`) e carregue os dados completos no destino. Isso evita rotas longas/frágeis e mantém responsabilidades melhor separadas.
+💡 **Dica**: passar IDs e tipos simples na rota (`detalhe/{id}`) é esperado. Evite passar objetos complexos na rota; prefira carregá-los no destino a partir do ID.
 
 ```kotlin
 // No NavHost:
@@ -154,7 +156,8 @@ val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
 ### 3. Desafio
 
 Crie um aplicativo com duas telas em Compose. Na primeira, o usuário insere um texto. Na segunda, o texto é exibido e pode ser compartilhado com outros aplicativos.
-💡 **Dica**: Use `Navigation Compose` para navegar entre telas internas e passe apenas um `id` na rota. Em arquitetura MVVM, recupere o texto via `ViewModel`/repositório; em versão simples de estudo, mantenha uma estrutura em memória (ex.: `val mensagens = hashMapOf("1" to "Olá")`) e busque o conteúdo por `id` antes de compartilhar com `ACTION_SEND`.
+💡 **Dica (base):** Use `Navigation Compose` para navegar entre telas internas e passe apenas um `id` na rota. Para este exercício, mantenha uma estrutura em memória (ex.: `val mensagens = hashMapOf("1" to "Olá")`) e busque o conteúdo por `id` antes de compartilhar com `ACTION_SEND`.
+💡 **Opcional (avançado):** quando chegar ao módulo de MVVM, substitua a estrutura local por `ViewModel` + repositório.
 
 ```kotlin
 // Tela 1 — navegar para a rota da tela 2 passando apenas um id:
