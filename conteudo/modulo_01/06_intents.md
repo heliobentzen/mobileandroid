@@ -1,4 +1,4 @@
-# Intents no Android Moderno
+# Intents no Android (Uso Moderno)
 
 `Intents` são objetos de mensagem usados para solicitar uma ação de outro componente de aplicativo. Eles são um dos conceitos fundamentais do Android, servindo como o "cimento" que liga Activities, Services e Broadcast Receivers.
 
@@ -151,15 +151,15 @@ val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
 ### 3. Desafio
 
 Crie um aplicativo com duas telas em Compose. Na primeira, o usuário insere um texto. Na segunda, o texto é exibido e pode ser compartilhado com outros aplicativos.
-💡 **Dica**: Use `Navigation Compose` para navegar entre telas internas e `ACTION_SEND` para compartilhar externamente.
+💡 **Dica**: Use `Navigation Compose` para navegar entre telas internas e passe apenas um `id` na rota. O texto pode ser recuperado via `ViewModel`/repositório antes de compartilhar com `ACTION_SEND`.
 
 ```kotlin
-// Tela 1 — navegar para a rota da tela 2 (Uri.encode evita quebrar a rota com espaços/símbolos):
-// navController.navigate("exibicao/${Uri.encode(textoDigitado)}")
+// Tela 1 — navegar para a rota da tela 2 passando apenas um id:
+// navController.navigate("exibicao/$mensagemId")
 // Tela 2 — botão de compartilhar com outro app:
 // val compartilharIntent = Intent(Intent.ACTION_SEND).apply {
 //     type = "text/plain"
-//     putExtra(Intent.EXTRA_TEXT, textoDaRota)
+//     putExtra(Intent.EXTRA_TEXT, textoCarregadoPeloId)
 // }
 // startActivity(Intent.createChooser(compartilharIntent, "Compartilhar via"))
 ```
