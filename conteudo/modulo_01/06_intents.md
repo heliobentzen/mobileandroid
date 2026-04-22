@@ -6,7 +6,7 @@
 
 No Android, cada aplicativo roda em seu próprio processo isolado por segurança. Os componentes não se comunicam diretamente — o sistema operacional atua como intermediário, e as **Intents são o mecanismo de mensageria** que conecta esses componentes. Pense em uma Intent como um **envelope**: você descreve *o que* deseja fazer (a ação) e, opcionalmente, *com quais dados*. O Android encontra o destinatário correto e entrega a mensagem.
 
-## Fluxo recomendado em apps atuais
+## Quando usar cada abordagem
 
 - **Navegação interna (telas do próprio app):** use **Navigation Compose**.
 - **Integração com sistema/outros apps:** use **Intents** (implícitas na maioria dos casos).
