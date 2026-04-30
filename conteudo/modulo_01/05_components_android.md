@@ -36,23 +36,16 @@ override fun onStop() { super.onStop(); Log.d("Life", "onStop") }
 override fun onDestroy() { super.onDestroy(); Log.d("Life", "onDestroy") }
 ```
 
-## 4. Fragment (Resumo de Ciclo de Vida)
-onAttach -> onCreate -> onCreateView -> onViewCreated -> onStart -> onResume  
-(onPause -> onStop -> onDestroyView -> onDestroy -> onDetach)
+## 4. Fragment (Referência Rápida — Interoperabilidade)
 
-**Principais callbacks explicados:**
+> **Em projetos novos com Jetpack Compose, Fragments não são necessários.** Use Single-Activity + Navigation Compose. Esta seção serve apenas como referência para interoperabilidade com código legado.
 
-- **onAttach**: chamado quando o Fragment é associado à Activity hospedeira. É o primeiro ponto em que você pode acessar o contexto da Activity. Útil para obter referências ou validar que a Activity implementa interfaces esperadas.
+Ciclo resumido: `onAttach → onCreate → onCreateView → onViewCreated → onStart → onResume`  
+(reverso: `onPause → onStop → onDestroyView → onDestroy → onDetach`)
 
-- **onCreateView**: responsável por inflar (criar) a hierarquia de views do Fragment. Em projetos Compose, é aqui que você retorna um `ComposeView` com o conteúdo declarativo. Retorne `null` se o Fragment não possui UI (ex: Fragment headless).
-
-- **onViewCreated**: chamado logo após `onCreateView`, quando a view já está criada mas ainda não foi exibida. É o local ideal para configurar listeners, observers e bindings na view — garante que a view não é nula.
-
-- **onDestroyView**: chamado quando a view do Fragment é removida da tela. Aqui você deve liberar referências à view para evitar vazamento de memória (memory leak). O Fragment em si ainda pode existir (ex: na back stack) e ser recriado depois.
-
-Compose em Fragment:
+Inserindo Compose em um Fragment existente:
 ```kotlin
-class HomeFragment: Fragment() {
+class HomeFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View = ComposeView(requireContext()).apply {
