@@ -2,7 +2,7 @@
 
 ## 1. Por que existem e o que são
 
-Uma Activity é um dos blocos fundamentais de um app Android: é a porta de entrada de uma UI com a qual o usuário interage diretamente. Historicamente cada tela era uma Activity. Hoje, adotamos (quando possível) uma arquitetura de Single-Activity + Navigation (Fragments ou, mais moderno, Jetpack Compose + Navigation), deixando a Activity como host do fluxo. Ainda assim, entender Activities continua essencial porque:
+Uma Activity é um dos blocos fundamentais de um app Android: é a porta de entrada de uma UI com a qual o usuário interage diretamente. Historicamente cada tela era uma Activity. Hoje, adotamos uma arquitetura de **Single-Activity + Jetpack Compose + Navigation**, deixando a Activity como host do fluxo. Fragments ainda podem ser encontrados em projetos legados (veja a referência rápida em [05 — Componentes Android](05_components_android.md)). Ainda assim, entender Activities continua essencial porque:
 - O sistema (Android OS) gerencia seu ciclo de vida agressivamente para liberar recursos.
 - Interações externas (intents, deep links, compartilhamento, permissões, resultado de outras telas) passam por Activities.
 - Muitos componentes (câmera, notificações, App Links, Shortcuts, Wear, Auto) envolvem callbacks ligados à Activity.
