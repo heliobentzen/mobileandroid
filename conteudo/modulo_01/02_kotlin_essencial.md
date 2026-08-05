@@ -83,15 +83,39 @@ var subtitulo: String? = null
 
 ### Formas de acessar valores possivelmente nulos
 
+Digamos que temos `var subtitulo: String? = null`. Como acessar `subtitulo.length` com segurança? Vamos evoluir a solução passo a passo.
+
+#### Passo 1 — o jeito ingênuo (não compila)
+
+```kotlin
+println(subtitulo.length) // erro de compilação!
+```
+
+O Kotlin recusa compilar essa linha: como `subtitulo` pode ser `null`, chamar `.length` diretamente seria arriscado. O compilador te obriga a lidar com essa possibilidade antes.
+
+#### Passo 2 — safe call (`?.`)
+
 ```kotlin
 subtitulo?.length
-// Safe call (chamada segura): se 'subtitulo' for null, a expressão inteira
-// retorna null em vez de crashar. Se não for null, retorna o comprimento normalmente.
+// Se 'subtitulo' for null, a expressão inteira retorna null em vez de crashar.
+// Se não for null, retorna o comprimento normalmente.
+```
 
+Isso já compila e nunca crasha — mas o resultado agora é um `Int?` (pode ser null). Às vezes você precisa de um número de verdade, não de "número ou null".
+
+#### Passo 3 — Elvis operator (`?:`) para um valor padrão
+
+```kotlin
 val tam = subtitulo?.length ?: 0
-// Elvis operator (?:): "se o lado esquerdo for null, use o valor à direita".
-// Aqui, se subtitulo for null, 'tam' recebe 0 em vez de null.
+// "Se o lado esquerdo for null, use o valor à direita".
+// Se subtitulo for null, 'tam' recebe 0 em vez de null.
+```
 
+Agora `tam` é sempre um `Int`, nunca `Int?`. Essa é a forma mais comum de lidar com nulos no dia a dia.
+
+#### Outras duas formas (para casos específicos)
+
+```kotlin
 subtitulo!!.length
 // Double-bang (!!): força o Kotlin a tratar o valor como não-nulo.
 // Se 'subtitulo' realmente for null nesse momento, o app CRASHA.
@@ -175,17 +199,7 @@ class MainViewModel : ViewModel() {
 
 **O que é.** Kotlin é uma linguagem orientada a objetos: você modela conceitos do mundo real (um usuário, uma tarefa, um produto) como **classes**, que descrevem quais dados e comportamentos aquele conceito tem.
 
-```kotlin
-class Pessoa(val nome: String, var idade: Int) {
-    fun aniversario() { idade++ }
-}
-data class Usuario(val id: Int, val nome: String)
-val u = Usuario(1, "Ana").copy(nome = "Bia")
-val (id, n) = u
-object Config { const val versao = "1.0" }
-```
-
-### Exemplo comentado
+#### Passo 1 — uma classe comum
 
 ```kotlin
 class Pessoa(val nome: String, var idade: Int) {
@@ -193,14 +207,20 @@ class Pessoa(val nome: String, var idade: Int) {
     // diretamente no CONSTRUTOR PRIMÁRIO, economiza escrever isso separadamente.
     fun aniversario() { idade++ } // método que modifica o estado interno do objeto
 }
+```
 
+Isso já funciona para modelar algo com comportamento (`aniversario()`). Mas se você tentar comparar duas `Pessoa` com os mesmos dados (`p1 == p2`), ou imprimir uma para debug (`println(p1)`), o resultado não é útil — `class` comum não gera esse código automaticamente.
+
+#### Passo 2 — `data class` para classes que só guardam dados
+
+```kotlin
 data class Usuario(val id: Int, val nome: String)
 // 'data class' é uma classe especial pensada para GUARDAR DADOS.
 // O Kotlin gera automaticamente, sem você escrever nada a mais:
 //  - equals()/hashCode() (comparar dois usuários pelo conteúdo, não pela referência)
 //  - toString() (uma representação em texto legível para debug)
 //  - copy() (criar uma cópia alterando só alguns campos)
-//  - componentN() (permite "desestruturar" o objeto, como na linha abaixo)
+//  - componentN() (permite "desestruturar" o objeto)
 
 val u = Usuario(1, "Ana").copy(nome = "Bia")
 // copy() cria um NOVO objeto Usuario com id=1 (mantido) e nome="Bia" (alterado).
@@ -209,13 +229,17 @@ val u = Usuario(1, "Ana").copy(nome = "Bia")
 val (id, n) = u
 // Desestruturação: extrai 'id' e 'n' diretamente dos campos de 'u', na ordem
 // em que foram declarados na data class (id primeiro, nome depois).
+```
 
+#### Passo 3 — `object` quando você precisa de uma única instância global
+
+```kotlin
 object Config { const val versao = "1.0" }
 // 'object' cria um SINGLETON: existe uma única instância de Config em todo o app,
 // acessível diretamente por Config.versao, sem precisar instanciar com "Config()".
 ```
 
-**Regra prática:** se o objetivo é "guardar dados" (como um registro vindo de uma API), use `data class`. Se você precisa de um único ponto de acesso global (como uma configuração ou uma constante compartilhada), use `object` (singleton).
+**Regra prática:** se o objetivo é modelar algo com comportamento, use `class`. Se é "guardar dados" (como um registro vindo de uma API), use `data class`. Se você precisa de um único ponto de acesso global (como uma configuração compartilhada), use `object` (singleton).
 
 ### Erros comuns / Pegadinhas
 

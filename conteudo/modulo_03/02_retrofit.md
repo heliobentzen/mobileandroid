@@ -80,14 +80,81 @@ Organizar o projeto em camadas facilita testes, manutenção e clareza sobre ond
 
 ## Parte 1: Instância do Retrofit (camada data/remote)
 
-O `ApiClient` é um objeto singleton (uma única instância compartilhada por todo o app) responsável por criar e fornecer a instância do Retrofit. Configuramos aqui o OkHttp (cliente HTTP que faz a conexão de fato), o Gson (conversor JSON → objeto Kotlin) e os timeouts (tempo máximo de espera antes de desistir de uma requisição).
+O `ApiClient` é um objeto singleton (uma única instância compartilhada por todo o app) responsável por criar e fornecer a instância do Retrofit. Em vez de já mostrar a versão final com todos os ajustes, vamos construí-la em etapas.
+
+#### Passo 1 — o Retrofit mais simples possível
+
+Para existir, um `Retrofit` só precisa de dois ingredientes: um endereço base (`baseUrl`) e um conversor que saiba transformar JSON em objetos Kotlin (`GsonConverterFactory`).
 
 ```kotlin
 // data/remote/ApiClient.kt
 package com.example.retrofitdemo.data.remote
 
 import com.example.retrofitdemo.data.remote.service.PostService
-import com.google.gson.GsonBuilder
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+
+object ApiClient {
+    private const val BASE_URL = "https://jsonplaceholder.typicode.com/"
+
+    private val retrofit: Retrofit = Retrofit.Builder()
+        .baseUrl(BASE_URL)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+
+    val postService: PostService by lazy {
+        retrofit.create(PostService::class.java)
+    }
+}
+```
+
+Essa versão já funciona e já faz chamadas de rede de verdade. A limitação: se o servidor demorar demais para responder, o app pode ficar esperando indefinidamente, e não há nenhum registro (log) do que está sendo enviado ou recebido — dificultando muito depurar problemas de rede.
+
+#### Passo 2 — adicionando timeouts com OkHttp
+
+O `OkHttpClient` é o motor HTTP de verdade por trás do Retrofit. Configurando-o, ganhamos controle sobre quanto tempo esperar antes de desistir de uma requisição.
+
+```kotlin
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
+
+private val okHttp = OkHttpClient.Builder()
+    .connectTimeout(15, TimeUnit.SECONDS) // Tempo máx. para abrir a conexão.
+    .readTimeout(20, TimeUnit.SECONDS)    // Tempo máx. esperando a resposta.
+    .build()
+
+private val retrofit: Retrofit = Retrofit.Builder()
+    .baseUrl(BASE_URL)
+    .client(okHttp) // Agora o Retrofit usa nosso cliente HTTP configurado.
+    .addConverterFactory(GsonConverterFactory.create())
+    .build()
+```
+
+#### Passo 3 — adicionando logging para depuração
+
+Falta uma forma de enxergar o que está sendo enviado e recebido. Um `HttpLoggingInterceptor` é um "espião" que registra cada requisição/resposta HTTP no Logcat.
+
+```kotlin
+import okhttp3.logging.HttpLoggingInterceptor
+
+private val logging = HttpLoggingInterceptor().apply {
+    level = HttpLoggingInterceptor.Level.BASIC
+}
+
+private val okHttp = OkHttpClient.Builder()
+    .addInterceptor(logging) // Anexa o "espião" de logs.
+    .connectTimeout(15, TimeUnit.SECONDS)
+    .readTimeout(20, TimeUnit.SECONDS)
+    .build()
+```
+
+Juntando os três passos, chegamos à versão completa do `ApiClient`:
+
+```kotlin
+// data/remote/ApiClient.kt
+package com.example.retrofitdemo.data.remote
+
+import com.example.retrofitdemo.data.remote.service.PostService
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -100,28 +167,22 @@ object ApiClient {
     private const val BASE_URL = "https://jsonplaceholder.typicode.com/"
 
     // Interceptor: um "espião" que registra no Logcat cada requisição/resposta HTTP.
-    // Útil para depurar problemas de rede durante o desenvolvimento.
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BASIC
     }
 
     // OkHttpClient é o motor HTTP de verdade por trás do Retrofit.
     private val okHttp = OkHttpClient.Builder()
-        .addInterceptor(logging)                    // Anexa o "espião" de logs.
-        .connectTimeout(15, TimeUnit.SECONDS)        // Tempo máx. para abrir a conexão.
-        .readTimeout(20, TimeUnit.SECONDS)           // Tempo máx. esperando a resposta.
+        .addInterceptor(logging)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
         .build()
-
-    // Gson converte JSON <-> objetos Kotlin. setLenient() tolera JSON levemente malformado.
-    private val gson = GsonBuilder()
-        .setLenient()
-        .create()
 
     // Monta o Retrofit: precisa de baseUrl, um cliente HTTP e um conversor de dados.
     private val retrofit: Retrofit = Retrofit.Builder()
         .baseUrl(BASE_URL)
         .client(okHttp)
-        .addConverterFactory(GsonConverterFactory.create(gson))
+        .addConverterFactory(GsonConverterFactory.create())
         .build()
 
     // "by lazy" cria o serviço só na primeira vez que for usado, e reaproveita depois.
@@ -173,7 +234,50 @@ data class Post(
 
 ## Parte 3: Service (endpoints com suspend fun)
 
-O `PostService` é a interface que descreve os endpoints da API. Você não escreve a implementação — o Retrofit gera automaticamente o código real em tempo de execução, a partir das anotações. Usamos `suspend fun` (função suspensa, veja o Módulo 3.01) para que as chamadas de rede possam ser executadas de forma assíncrona com coroutines, sem travar a UI.
+O `PostService` é a interface que descreve os endpoints da API. Você não escreve a implementação — o Retrofit gera automaticamente o código real em tempo de execução, a partir das anotações. Vamos construir essa interface endpoint por endpoint.
+
+#### Passo 1 — um único endpoint
+
+`@GET` define o verbo HTTP e o caminho do endpoint (some com a `BASE_URL`). `suspend` permite chamar essa função de dentro de uma coroutine e aguardar o resultado, sem travar a UI (veja o Módulo 3.01).
+
+```kotlin
+// data/remote/service/PostService.kt
+package com.example.retrofitdemo.data.remote.service
+
+import com.example.retrofitdemo.data.remote.dto.PostDto
+import retrofit2.http.GET
+
+interface PostService {
+    @GET("posts")
+    suspend fun getPosts(): List<PostDto>
+}
+```
+
+Com isso já conseguimos buscar a lista inteira de posts. Mas e se quisermos buscar só **um** post específico, pelo id?
+
+#### Passo 2 — adicionando um parâmetro na URL com `@Path`
+
+`@Path` substitui `{id}` na URL pelo valor passado como argumento. Ex.: `getPost(5)` chama `posts/5`.
+
+```kotlin
+import retrofit2.http.Path
+
+@GET("posts/{id}")
+suspend fun getPost(@Path("id") id: Int): PostDto
+```
+
+#### Passo 3 — adicionando um parâmetro de filtro com `@Query`
+
+`@Query` adiciona um parâmetro de URL (`?userId=valor`), comum em filtros — diferente do `@Path`, que substitui um trecho fixo do caminho.
+
+```kotlin
+import retrofit2.http.Query
+
+@GET("posts")
+suspend fun getPostsByUser(@Query("userId") userId: Int): List<PostDto>
+```
+
+Juntando os três endpoints na interface final:
 
 ```kotlin
 // data/remote/service/PostService.kt
@@ -185,17 +289,12 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface PostService {
-    // @GET define o verbo HTTP e o caminho do endpoint (some com a BASE_URL).
-    // "suspend" permite chamar essa função de dentro de uma coroutine e aguardar o resultado.
     @GET("posts")
     suspend fun getPosts(): List<PostDto>
 
-    // @Path substitui "{id}" na URL pelo valor passado como argumento.
-    // Ex.: getPost(5) chama "posts/5".
     @GET("posts/{id}")
     suspend fun getPost(@Path("id") id: Int): PostDto
 
-    // @Query adiciona um parâmetro de URL (?userId=valor), comum em filtros.
     @GET("posts")
     suspend fun getPostsByUser(@Query("userId") userId: Int): List<PostDto>
 }
@@ -273,7 +372,7 @@ class PostRepositoryImpl(
 
 ## Parte 5: ViewModel (StateFlow + coroutines)
 
-O ViewModel expõe o estado da UI como `StateFlow` (um "container" observável de estado — veja o Módulo 3.05 para se aprofundar em Flow) e usa `viewModelScope` para lançar coroutines com ciclo de vida seguro. O uso de `runCatching` simplifica o tratamento de sucesso/falha sem blocos `try/catch` explícitos: ele executa o bloco e devolve um resultado que pode ser tratado com `.onSuccess { }` e `.onFailure { }`.
+O ViewModel expõe o estado da UI como `StateFlow` (um "container" observável de estado — veja o Módulo 3.05 para se aprofundar em Flow) e usa `viewModelScope` para lançar coroutines com ciclo de vida seguro.
 
 Primeiro, definimos os possíveis estados da tela com uma `sealed interface` — um tipo que só pode assumir um conjunto fechado e conhecido de formas (aqui: carregando, sucesso ou erro), o que obriga o código que lê o estado a tratar todos os casos:
 
@@ -290,6 +389,66 @@ sealed interface PostUiState {
     data class Error(val message: String) : PostUiState     // Falhou, com mensagem de erro.
 }
 ```
+
+Agora vamos construir o ViewModel que preenche esse estado, evoluindo em etapas o jeito como ele lida com erros.
+
+#### Passo 1 — a versão ingênua, sem tratar erros
+
+```kotlin
+class PostViewModel(
+    private val repository: PostRepository
+) : ViewModel() {
+    private val _uiState = MutableStateFlow<PostUiState>(PostUiState.Loading)
+    val uiState: StateFlow<PostUiState> = _uiState.asStateFlow()
+
+    init { loadPosts() }
+
+    fun loadPosts() {
+        viewModelScope.launch {
+            _uiState.value = PostUiState.Loading
+            val posts = repository.getPosts() // Se isso lançar uma exceção, ninguém trata.
+            _uiState.value = PostUiState.Success(posts)
+        }
+    }
+}
+```
+
+**O problema:** se `repository.getPosts()` lançar uma exceção (sem internet, servidor fora do ar, erro 500), essa exceção nunca é capturada. A coroutine falha, o `viewModelScope` propaga o erro, e o app pode crashar — a tela nunca chega a mostrar `PostUiState.Error`.
+
+#### Passo 2 — capturando o erro com try/catch
+
+```kotlin
+fun loadPosts() {
+    viewModelScope.launch {
+        _uiState.value = PostUiState.Loading
+        try {
+            val posts = repository.getPosts()
+            _uiState.value = PostUiState.Success(posts)
+        } catch (e: Exception) {
+            _uiState.value = PostUiState.Error(e.message ?: "Erro inesperado")
+        }
+    }
+}
+```
+
+Agora uma falha vira `PostUiState.Error` em vez de derrubar o app. Funciona, mas em Kotlin existe um jeito mais idiomático de expressar "tente isso, e trate sucesso/falha separadamente".
+
+#### Passo 3 — simplificando com `runCatching`
+
+`runCatching` executa o bloco e devolve um `Result`, que pode ser tratado com `.onSuccess { }` e `.onFailure { }` — o mesmo efeito do `try/catch`, com uma sintaxe mais encadeável:
+
+```kotlin
+fun loadPosts() {
+    viewModelScope.launch {
+        _uiState.value = PostUiState.Loading
+        runCatching { repository.getPosts() }
+            .onSuccess { _uiState.value = PostUiState.Success(it) }
+            .onFailure { _uiState.value = PostUiState.Error(it.message ?: "Erro inesperado") }
+    }
+}
+```
+
+Essa é a versão que vamos usar daqui em diante. O ViewModel completo:
 
 ```kotlin
 // presentation/post/PostViewModel.kt
@@ -344,7 +503,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.retrofitdemo.domain.model.Post
@@ -400,7 +558,7 @@ private fun PostList(posts: List<Post>, modifier: Modifier = Modifier) {
 private fun PostItem(post: Post) {
     ElevatedCard {
         Column(Modifier.padding(16.dp)) {
-            Text(text = post.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(text = post.title, style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
             Text(text = post.body, style = MaterialTheme.typography.bodyMedium)
         }
@@ -455,21 +613,14 @@ import com.example.retrofitdemo.presentation.post.PostViewModel
 import com.example.retrofitdemo.presentation.post.PostViewModelFactory
 
 class MainActivity : ComponentActivity() {
+    // "by lazy" cria o ViewModel apenas na primeira vez que ele for acessado.
     private val viewModel by lazy {
-        ViewModelProvider(
-            this,
-            PostViewModelFactory(PostRepositoryImpl(ApiClient.postService))
-        )[PostViewModel::class.java]
+        val repo = PostRepositoryImpl(ApiClient.postService)
+        ViewModelProvider(this, PostViewModelFactory(repo))[PostViewModel::class.java]
     }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val repo = PostRepositoryImpl(ApiClient.postService)
-        val viewModel = ViewModelProvider(
-            this,
-            PostViewModelFactory(repo)
-        )[PostViewModel::class.java]
-
         setContent {
             MaterialTheme {
                 PostScreen(viewModel = viewModel)
@@ -484,7 +635,18 @@ class MainActivity : ComponentActivity() {
 ## Parte 7: Erros, logging e boas práticas
 
 - **Logging**: o `HttpLoggingInterceptor` no nível `BASIC` mostra no Logcat a URL, o método e o código de status de cada requisição. Em modo debug, você pode trocar para `BODY` para ver o JSON completo — útil para depurar, mas nunca deixe isso ativo em builds de produção (pode vazar dados sensíveis nos logs).
-- **Tratamento de exceções**: duas exceções aparecem com frequência ao trabalhar com Retrofit — `HttpException` (o servidor respondeu, mas com um código de erro, como 404 ou 500) e `IOException` (a requisição nem chegou a ter resposta, geralmente por falta de internet ou timeout). Trate as duas de forma diferenciada quando quiser mostrar mensagens de erro específicas ao usuário.
+- **Tratamento de exceções**: duas exceções aparecem com frequência ao trabalhar com Retrofit — `HttpException` (o servidor respondeu, mas com um código de erro, como 404 ou 500) e `IOException` (a requisição nem chegou a ter resposta, geralmente por falta de internet ou timeout). Trate as duas de forma diferenciada quando quiser mostrar mensagens de erro específicas ao usuário, evoluindo o `onFailure` do Passo 3 anterior:
+
+```kotlin
+.onFailure { erro ->
+    val mensagem = when (erro) {
+        is HttpException -> "O servidor respondeu com erro (${erro.code()})."
+        is IOException -> "Sem conexão com a internet. Verifique sua rede."
+        else -> erro.message ?: "Erro inesperado"
+    }
+    _uiState.value = PostUiState.Error(mensagem)
+}
+```
 - **Separar DTO de Domain**: mantém isolamento sem precisar de um arquivo "mapper" dedicado quando a transformação é simples (como fizemos com `.map { }` direto no repository).
 - **Evitar trabalho pesado na UI thread**: se você precisar processar uma resposta grande (ordenar, filtrar milhares de itens), use `withContext(Dispatchers.Default)` para não travar a interface (veja Módulo 3.01).
 

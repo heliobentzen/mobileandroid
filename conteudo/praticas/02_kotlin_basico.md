@@ -169,7 +169,7 @@ Classes são usadas para modelar "coisas" do seu app: um usuário, um produto, u
 
 ### Passo a Passo
 
-1. Crie o arquivo `Classes.kt`:
+1. Crie o arquivo `Classes.kt` e comece com uma classe normal, que combina estado (`saldo`) e comportamento (métodos que alteram esse estado):
 
 ```kotlin
 // Classe normal: comportamento + estado
@@ -189,6 +189,19 @@ class ContaBancaria(val titular: String, var saldo: Double = 0.0) {
     }
 }
 
+fun main() {
+    val conta = ContaBancaria("Ana", 100.0)
+    conta.depositar(50.0)
+    conta.sacar(30.0)
+    conta.sacar(200.0)
+}
+```
+
+Execute e veja o saldo mudando a cada operação — isso é uma classe comum, com lógica própria.
+
+2. Agora adicione uma `data class`, pensada apenas para guardar dados (sem lógica de negócio própria). Acrescente ao mesmo arquivo:
+
+```kotlin
 // Data class: ideal para guardar dados (gera equals, hashCode, toString e copy automaticamente)
 data class Produto(
     val id: Int,
@@ -197,12 +210,7 @@ data class Produto(
 )
 
 fun main() {
-    val conta = ContaBancaria("Ana", 100.0)
-    conta.depositar(50.0)
-    conta.sacar(30.0)
-    conta.sacar(200.0)
-
-    println("---")
+    // ... chamadas de ContaBancaria do passo anterior ...
 
     val produto1 = Produto(1, "Caderno", 12.50)
     val produto2 = produto1.copy(id = 2, nome = "Caneta", preco = 3.99)
@@ -217,7 +225,7 @@ fun main() {
 }
 ```
 
-2. Execute e observe como `data class` simplifica o trabalho com dados.
+3. Execute e observe como `data class` simplifica o trabalho com dados: você não escreveu `equals`, `toString` nem `copy`, mas os três já funcionam.
 
 > **💡 Por trás dos panos**
 > Quando você marca uma classe com `data`, o compilador gera automaticamente métodos como `equals()` (compara se dois objetos têm os mesmos valores), `toString()` (imprime os campos de forma legível) e `copy()` (cria uma cópia alterando só alguns campos). Isso é o que permite `produto1.copy(id = 2, nome = "Caneta")` funcionar: em vez de reescrever o objeto inteiro, você pede uma cópia e só especifica o que muda — os demais campos são copiados automaticamente. Esse padrão (criar uma nova cópia em vez de alterar o objeto original) é o mesmo usado depois em `StateFlow` e MVVM para atualizar o estado da tela.

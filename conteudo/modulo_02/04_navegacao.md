@@ -67,15 +67,8 @@ Para centralizar os caminhos e evitar erros de digitação (como escrever `"deti
 // Cada objeto representa uma tela do app.
 // O parâmetro "path" é a string usada internamente pelo NavHost.
 sealed class AppRoute(val path: String) {
-    // Tela inicial — rota simples, sem argumentos
     data object Home : AppRoute("home")
-    // Tela de detalhe — recebe um argumento "itemId" na URL
-    data object Detail : AppRoute("detail/{itemId}") {
-        // Função auxiliar que monta a rota com o valor real do argumento
-        fun build(itemId: String) = "detail/$itemId"
-        // Constante para evitar digitar "itemId" em vários lugares
-        const val ARG_ITEM_ID = "itemId"
-    }
+    data object Detail : AppRoute("detail")
 }
 ```
 
@@ -84,7 +77,7 @@ sealed class AppRoute(val path: String) {
 
 ---
 
-## Passo 1: Configurar o NavHost
+## Passo 1: NavHost com rotas simples (sem argumentos)
 
 O **`NavHost`** é o composable que efetivamente troca as telas na tela do celular, de acordo com a rota atual. Ele funciona como um "container" que sempre mostra a tela correspondente à rota ativa no momento.
 
@@ -97,6 +90,58 @@ fun AppNavHost(
         // Registra a tela Home na rota "home"
         composable(AppRoute.Home.path) {
             // Passa callback — a tela não conhece o NavController (boa prática)
+            HomeScreen(onOpenDetail = { navController.navigate(AppRoute.Detail.path) })
+        }
+        // Registra a tela Detail na rota "detail"
+        composable(AppRoute.Detail.path) {
+            DetailScreen()
+        }
+    }
+}
+
+@Composable
+fun HomeScreen(onOpenDetail: () -> Unit) {
+    Button(onClick = onOpenDetail) {
+        Text("Ir para Detalhes")
+    }
+}
+
+@Composable
+fun DetailScreen() {
+    Text("Tela de detalhes")
+}
+```
+
+**O que é `NavHostController`?** É o objeto que efetivamente comanda a navegação: você chama `navController.navigate("rota")` para trocar de tela, e ele atualiza o `NavHost` e o back stack automaticamente. `rememberNavController()` cria (ou recupera, em recomposições) essa instância.
+
+**Por que a `HomeScreen` recebe um callback (`onOpenDetail`) em vez do `navController` diretamente?** Se cada tela recebesse o `NavHostController` diretamente, ela ficaria "acoplada" à navegação e mais difícil de testar isoladamente (você precisaria simular um `NavController` completo só para testar o botão). Passando um callback simples, a tela não precisa saber nada sobre como a navegação funciona — só avisa "o usuário quer abrir a tela de detalhes" e quem decide como navegar é o `AppNavHost`.
+
+Essa versão já navega de uma tela para outra, mas tem uma limitação evidente: `DetailScreen` é sempre igual, não importa em qual item o usuário clicou — ela não recebe nenhuma informação sobre o que deveria mostrar.
+
+## Passo 2: passando dados com um argumento tipado
+
+Para resolver isso, a rota `Detail` passa a aceitar um argumento (`itemId`) embutido na própria URL — um pouco como uma query string. Isso muda três lugares: a rota (que ganha `{itemId}` no `path` e uma função `build()` para montá-la), o registro no `NavHost` (que declara o tipo do argumento com `navArgument`) e a tela (que passa a receber o dado).
+
+```kotlin
+// Tela de detalhe agora recebe um argumento "itemId" na URL
+sealed class AppRoute(val path: String) {
+    data object Home : AppRoute("home")
+    data object Detail : AppRoute("detail/{itemId}") {
+        // Função auxiliar que monta a rota com o valor real do argumento
+        fun build(itemId: String) = "detail/$itemId"
+        // Constante para evitar digitar "itemId" em vários lugares
+        const val ARG_ITEM_ID = "itemId"
+    }
+}
+```
+
+```kotlin
+@Composable
+fun AppNavHost(
+    navController: NavHostController = rememberNavController()
+) {
+    NavHost(navController, startDestination = AppRoute.Home.path) {
+        composable(AppRoute.Home.path) {
             HomeScreen(
                 onOpenDetail = { id -> navController.navigate(AppRoute.Detail.build(id)) }
             )
@@ -114,15 +159,7 @@ fun AppNavHost(
         }
     }
 }
-```
 
-**O que é `NavHostController`?** É o objeto que efetivamente comanda a navegação: você chama `navController.navigate("rota")` para trocar de tela, e ele atualiza o `NavHost` e o back stack automaticamente. `rememberNavController()` cria (ou recupera, em recomposições) essa instância.
-
-**Por que a `HomeScreen` recebe um callback (`onOpenDetail`) em vez do `navController` diretamente?** Se cada tela recebesse o `NavHostController` diretamente, ela ficaria "acoplada" à navegação e mais difícil de testar isoladamente (você precisaria simular um `NavController` completo só para testar o botão). Passando um callback simples (`(String) -> Unit`), a tela não precisa saber nada sobre como a navegação funciona — só avisa "o usuário quer abrir o item X" e quem decide como navegar é o `AppNavHost`.
-
-## Passo 2: Criar as Telas
-
-```kotlin
 @Composable
 fun HomeScreen(onOpenDetail: (String) -> Unit) {
     Button(onClick = { onOpenDetail("123-ABC") }) { // Navega passando um ID
@@ -135,6 +172,8 @@ fun DetailScreen(itemId: String) {
     Text("Detalhes do item: $itemId") // Exibe o argumento recebido
 }
 ```
+
+Agora cada clique pode levar a uma tela de detalhe diferente, de acordo com o item escolhido — é este o padrão usado no restante da aula.
 
 ---
 

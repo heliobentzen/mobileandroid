@@ -172,46 +172,69 @@ Depois disso, você já pode estudar a parte mais detalhada da estrutura de proj
 
 1. **Abra o Android Studio** e crie um novo projeto.
 2. Escolha a opção **Empty Compose Activity**.
-3. Abra o arquivo `app/src/main/java/com/exemplo/app/MainActivity.kt` e substitua o conteúdo por:
+3. Abra o arquivo `app/src/main/java/com/exemplo/app/MainActivity.kt`. Em vez de colar o código final pronto, vamos construir a Activity em três passos pequenos — cada um acrescenta uma única coisa nova.
 
-    ```kotlin
-    import androidx.activity.ComponentActivity
-    import androidx.activity.compose.setContent
-    import androidx.compose.foundation.layout.Box
-    import androidx.compose.foundation.layout.fillMaxSize
-    import androidx.compose.material3.MaterialTheme
-    import androidx.compose.material3.Surface
-    import androidx.compose.material3.Text
-    import androidx.compose.ui.Alignment
-    import androidx.compose.ui.Modifier
+#### Passo 1 — a versão mais simples possível
 
-    // MainActivity é a "porta de entrada" do app — a primeira tela que o usuário vê.
-    // ComponentActivity é a classe base que dá suporte ao Jetpack Compose.
-    class MainActivity : ComponentActivity() {
+```kotlin
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.Text
 
-        // onCreate é chamado automaticamente pelo Android quando a tela é criada.
-        // Vamos explicar o ciclo de vida completo (onCreate, onStart, etc.) no arquivo 04.
-        override fun onCreate(savedInstanceState: android.os.Bundle?) {
-            super.onCreate(savedInstanceState) // sempre chame a versão da classe-mãe primeiro
+// MainActivity é a "porta de entrada" do app — a primeira tela que o usuário vê.
+// ComponentActivity é a classe base que dá suporte ao Jetpack Compose.
+class MainActivity : ComponentActivity() {
 
-            // setContent define QUAL interface Compose será exibida nesta Activity
-            setContent {
-                MaterialTheme {
-                    // Surface preenche toda a tela com a cor de fundo do tema
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background // Material 3: use colorScheme
-                    ) {
-                        // Box permite centralizar o conteúdo dentro dele
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("Hello World!") // o texto que o usuário vai ver
-                        }
-                    }
-                }
+    // onCreate é chamado automaticamente pelo Android quando a tela é criada.
+    // Vamos explicar o ciclo de vida completo (onCreate, onStart, etc.) no arquivo 04.
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState) // sempre chame a versão da classe-mãe primeiro
+
+        // setContent define QUAL interface Compose será exibida nesta Activity
+        setContent {
+            Text("Hello World!") // o texto que o usuário vai ver
+        }
+    }
+}
+```
+
+Rode o app: ele já funciona! Mas repare que o texto aparece "cru" no canto superior esquerdo, sem cor de fundo nem estilo — essa versão ainda não usa o tema visual do Material Design.
+
+#### Passo 2 — aplicando o tema do Material Design
+
+Troque apenas o conteúdo de `setContent { }` por:
+
+```kotlin
+setContent {
+    MaterialTheme {
+        // Surface preenche o fundo com a cor do tema, em vez de deixar transparente
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Text("Hello World!")
+        }
+    }
+}
+```
+
+(Adicione os imports `androidx.compose.material3.MaterialTheme` e `androidx.compose.material3.Surface`.) Agora o texto já respeita as cores do tema — mas continua "colado" no canto, sem preencher a tela nem estar centralizado.
+
+#### Passo 3 — preenchendo a tela e centralizando o conteúdo
+
+```kotlin
+setContent {
+    MaterialTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(), // ocupa toda a tela disponível
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Box(contentAlignment = Alignment.Center) { // centraliza o conteúdo dentro dele
+                Text("Hello World!")
             }
         }
     }
-    ```
+}
+```
+
+Imports adicionais deste passo: `androidx.compose.foundation.layout.Box`, `androidx.compose.foundation.layout.fillMaxSize`, `androidx.compose.ui.Alignment`, `androidx.compose.ui.Modifier`. Essa é a versão final: `Surface` agora ocupa a tela inteira (`fillMaxSize`) e `Box` centraliza o texto dentro dela.
 
 4. Execute o aplicativo clicando no botão **Run** (▶). Se o app abrir no emulador exibindo "Hello World!", você concluiu o ciclo básico com sucesso.
 

@@ -102,27 +102,49 @@ class HomeFragment : Fragment() {
 | `SideEffect` | Precisar sincronizar estado do Compose com código externo (não-Compose) a cada recomposição bem-sucedida. | Atualizar uma biblioteca de analytics com um valor de estado atual. |
 | `rememberUpdatedState(value)` | Tiver um callback ou valor que pode mudar, mas é usado dentro de um efeito de longa duração que não deve ser reiniciado. | Manter referência atualizada de um `onTick` lambda dentro de um `LaunchedEffect(Unit)`. |
 
-### Exemplo comentado
+### Exemplo comentado: `LaunchedEffect` + `rememberUpdatedState`
+
+#### Passo 1 — a versão mais simples de um timer
 
 ```kotlin
 @Composable
 fun Timer(onTick: (Long) -> Unit) {
-    // Sem rememberUpdatedState, se 'onTick' mudar entre recomposições,
-    // o LaunchedEffect abaixo continuaria usando a versão ANTIGA da lambda,
-    // porque ele só é relançado quando sua key (Unit) muda — e Unit nunca muda.
-    val currentOnTick by rememberUpdatedState(onTick)
-
     LaunchedEffect(Unit) {
         // 'Unit' como key significa "rode só uma vez, ao entrar na composição"
         while (true) {
             delay(1000) // suspend function — pausa sem travar a thread
+            onTick(System.currentTimeMillis())
+        }
+    }
+}
+```
+
+Isso já funciona no primeiro momento. O problema aparece se o valor de `onTick` (a lambda passada pelo chamador) mudar entre recomposições: como a `key` do `LaunchedEffect` é `Unit` (nunca muda), o efeito nunca é relançado — então o loop `while` continua usando para sempre a **versão antiga** de `onTick`, capturada quando o efeito começou.
+
+#### Passo 2 — corrigindo com `rememberUpdatedState`
+
+```kotlin
+@Composable
+fun Timer(onTick: (Long) -> Unit) {
+    val currentOnTick by rememberUpdatedState(onTick)
+    // Sempre que 'onTick' mudar entre recomposições, 'currentOnTick' é
+    // atualizado — sem precisar reiniciar o LaunchedEffect.
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
             currentOnTick(System.currentTimeMillis()) // sempre usa a versão mais recente
         }
     }
 }
 ```
 
+### Exemplo comentado: `DisposableEffect`
+
 Observando o Lifecycle da Activity (por exemplo, para enviar eventos de analytics) usando `LifecycleOwner`:
+
+#### Passo 1 — registrando o observer (sem limpeza)
+
 ```kotlin
 @Composable
 fun LifecycleLogger(tag: String) {
@@ -135,12 +157,27 @@ fun LifecycleLogger(tag: String) {
             Log.d(tag, "Event: $event") // chamado a cada mudança de estado do ciclo de vida
         }
         lifecycleOwner.lifecycle.addObserver(observer)
+        // Faltando: e se este Composable sair da composição? O observer
+        // continua registrado no lifecycleOwner para sempre — vazamento de memória.
+    }
+}
+```
 
-        onDispose {
-            // onDispose roda quando o Composable sai da composição —
-            // aqui removemos o observer para não vazar memória
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+#### Passo 2 — adicionando `onDispose` para limpar o observer
+
+Dentro da mesma função `LifecycleLogger`, só o corpo do `DisposableEffect` muda:
+
+```kotlin
+DisposableEffect(lifecycleOwner) {
+    val observer = LifecycleEventObserver { _, event ->
+        Log.d(tag, "Event: $event")
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+
+    onDispose {
+        // onDispose roda quando o Composable sai da composição —
+        // aqui removemos o observer para não vazar memória
+        lifecycleOwner.lifecycle.removeObserver(observer)
     }
 }
 ```

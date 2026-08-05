@@ -125,9 +125,10 @@ Uma coroutine só pode ser cancelada em um **ponto de suspensão**. Todas as fun
 
 ### Tornando uma Coroutine Cancelável
 
-Se você tem um trabalho computacional longo sem pontos de suspensão, ele ignorará o cancelamento.
+Se você tem um trabalho computacional longo sem pontos de suspensão, ele ignorará o cancelamento. Vamos ver isso na prática, evoluindo de uma versão que ignora o cancelamento para uma que respeita.
 
-**Forma incorreta (não cancelável):**
+#### Passo 1 — a versão ingênua (não cancelável)
+
 ```kotlin
 val job = launch(Dispatchers.Default) {
     // Este cozinheiro está tão focado em picar cebolas que não ouve ninguém.
@@ -140,7 +141,10 @@ delay(1000)
 job.cancelAndJoin() // O pedido de cancelamento será ignorado. A coroutine nunca para.
 ```
 
-**Forma correta (cancelável):**
+**O problema:** o loop `while (true)` nunca chama nenhuma função `suspend` (nem `delay`, nem nada da `kotlinx.coroutines`), então nunca existe um ponto onde a coroutine possa verificar "alguém pediu para eu parar?". `cancelAndJoin()` marca a coroutine como cancelada, mas ela simplesmente nunca olha para esse sinal — o loop roda para sempre, consumindo CPU e bateria à toa.
+
+#### Passo 2 — verificando `isActive` a cada iteração
+
 ```kotlin
 val job = launch(Dispatchers.Default) {
     var i = 0
@@ -156,7 +160,7 @@ job.cancelAndJoin() // Agora o cancelamento funciona.
 println("Trabalho cancelado.")
 ```
 
-Usar a propriedade `isActive` em loops computacionais garante que sua coroutine coopere com o cancelamento, tornando seu aplicativo mais seguro e previsível.
+A única mudança foi trocar `true` por `isActive`: agora, a cada iteração, o loop confere se a coroutine ainda está ativa. Quando `cancelAndJoin()` é chamado, `isActive` passa a `false` e o loop termina sozinho, de forma limpa. Usar `isActive` em loops computacionais garante que sua coroutine coopere com o cancelamento, tornando seu aplicativo mais seguro e previsível.
 
 ---
 

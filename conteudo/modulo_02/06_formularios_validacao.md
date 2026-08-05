@@ -97,18 +97,16 @@ fun CampoEmail(email: String, erro: String?, onChanged: (String) -> Unit) {
 
 ## 3. Estado do Formulário no ViewModel
 
-Centralizar o estado no `ViewModel` (a classe de lógica de apresentação vista na aula `01_mvvm.md`) garante que os dados sobrevivam a mudanças de configuração (rotação de tela) e mantém a validação fora da UI.
+Centralizar o estado no `ViewModel` (a classe de lógica de apresentação vista na aula `01_mvvm.md`) garante que os dados sobrevivam a mudanças de configuração (rotação de tela) e mantém a validação fora da UI. Em vez de já mostrar o `ViewModel` com todos os campos do formulário, vamos construí-lo em etapas.
+
+#### Passo 1 — estado com um único campo
+
+Comece com o mínimo: um campo (`email`), seu erro e a função que atualiza os dois.
 
 ```kotlin
-// Data class que representa o estado completo do formulário
 data class CadastroUiState(
-    val nome: String = "",         // valor do campo nome
-    val email: String = "",        // valor do campo email
-    val senha: String = "",        // valor do campo senha
-    val erroNome: String? = null,  // mensagem de erro (null = sem erro)
-    val erroEmail: String? = null,
-    val erroSenha: String? = null,
-    val enviando: Boolean = false  // indica se o formulário está sendo enviado
+    val email: String = "",       // valor do campo email
+    val erroEmail: String? = null // mensagem de erro (null = sem erro)
 )
 
 class CadastroViewModel : ViewModel() {
@@ -118,7 +116,51 @@ class CadastroViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(CadastroUiState()) // estado mutável interno
     val uiState: StateFlow<CadastroUiState> = _uiState // estado público imutável
 
-    // Cada campo atualiza seu valor e limpa o erro ao digitar
+    // Atualiza o valor e limpa o erro anterior ao digitar
+    fun onEmailChanged(valor: String) {
+        _uiState.update { it.copy(email = valor, erroEmail = null) }
+    }
+}
+```
+
+**O que faz `_uiState.update { ... }`?** É uma forma segura de alterar o valor de um `MutableStateFlow` a partir do valor atual: a função recebe o estado antigo (`it`) e você devolve o novo estado (geralmente com `.copy(...)`, já que `CadastroUiState` é uma `data class` imutável). Isso evita problemas de concorrência que poderiam ocorrer se duas atualizações tentassem escrever `.value` ao mesmo tempo.
+
+Essa versão já é reativa — o campo atualiza e limpa seu próprio erro ao digitar. Mas falta o essencial: **nada aqui chama a validação de verdade**. `erroEmail` nunca é preenchido com uma mensagem, então `isError` nunca fica `true`, não importa o que o usuário digite.
+
+#### Passo 2 — validando ao enviar
+
+Adicione uma função que roda a validação (reutilizando `validarEmail`, da seção 2) e grava o resultado no estado.
+
+```kotlin
+fun validarFormulario(): Boolean {
+    val state = _uiState.value
+    val erroEmail = validarEmail(state.email) // reutiliza a função da seção 2
+    _uiState.update { it.copy(erroEmail = erroEmail) }
+    return erroEmail == null
+}
+```
+
+Agora, ao chamar `validarFormulario()` (por exemplo, no clique do botão "Cadastrar"), o campo passa a mostrar o erro de verdade quando o e-mail é inválido.
+
+#### Passo 3 — repetindo o padrão para os demais campos
+
+O `CadastroUiState` de um formulário real tem mais de um campo. A boa notícia é que o padrão dos Passos 1 e 2 apenas se repete — cada campo ganha seu par (valor + erro) e sua função `onXChanged`, e `validarFormulario()` passa a validar todos de uma vez:
+
+```kotlin
+data class CadastroUiState(
+    val nome: String = "",
+    val email: String = "",
+    val senha: String = "",
+    val erroNome: String? = null,
+    val erroEmail: String? = null,
+    val erroSenha: String? = null,
+    val enviando: Boolean = false // indica se o formulário está sendo enviado
+)
+
+class CadastroViewModel : ViewModel() {
+    private val _uiState = MutableStateFlow(CadastroUiState())
+    val uiState: StateFlow<CadastroUiState> = _uiState
+
     fun onNomeChanged(valor: String) { _uiState.update { it.copy(nome = valor, erroNome = null) } }
     fun onEmailChanged(valor: String) { _uiState.update { it.copy(email = valor, erroEmail = null) } }
     fun onSenhaChanged(valor: String) { _uiState.update { it.copy(senha = valor, erroSenha = null) } }
@@ -127,7 +169,7 @@ class CadastroViewModel : ViewModel() {
     fun validarFormulario(): Boolean {
         val state = _uiState.value
         val erroNome = if (state.nome.isBlank()) "Nome é obrigatório" else null
-        val erroEmail = validarEmail(state.email) // reutiliza funções da seção 2
+        val erroEmail = validarEmail(state.email)
         val erroSenha = validarSenha(state.senha)
         _uiState.update { // atualiza o estado com todos os erros encontrados
             it.copy(erroNome = erroNome, erroEmail = erroEmail, erroSenha = erroSenha)
@@ -137,7 +179,7 @@ class CadastroViewModel : ViewModel() {
 }
 ```
 
-**O que faz `_uiState.update { ... }`?** É uma forma segura de alterar o valor de um `MutableStateFlow` a partir do valor atual: a função recebe o estado antigo (`it`) e você devolve o novo estado (geralmente com `.copy(...)`, já que `CadastroUiState` é uma `data class` imutável). Isso evita problemas de concorrência que poderiam ocorrer se duas atualizações tentassem escrever `.value` ao mesmo tempo.
+Essa é a versão que usamos no restante da aula (o campo `enviando` entra em cena na próxima seção, para desabilitar o botão durante o envio).
 
 ### Erros comuns / Pegadinhas
 

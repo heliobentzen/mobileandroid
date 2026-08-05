@@ -44,22 +44,21 @@ sealed class UiEvent {
 
 No seu `ViewModel`, crie um `MutableSharedFlow` para emitir os eventos e exponha-o como um `SharedFlow` imutável para a UI — o mesmo princípio de "privado mutável / público somente-leitura" que usamos com `StateFlow` na aula anterior.
 
+#### Passo 1 — criar o `SharedFlow` e emitir eventos
+
 ```kotlin
 // LoginViewModel.kt
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 class LoginViewModel : ViewModel() {
 
-    private val _eventFlow = MutableSharedFlow<UiEvent>(
-        replay = 0,                                   // Não re-emite eventos antigos para novos coletores (essencial para one-shot)
-        extraBufferCapacity = 1,                      // Permite emit() sem suspender mesmo sem coletor ativo no momento
-        onBufferOverflow = BufferOverflow.DROP_OLDEST // Se o buffer estiver cheio, descarta o evento mais antigo
-    )
+    // replay = 0: não re-emite eventos antigos para novos coletores — é isso
+    // que resolve o problema do LiveData (o coração da solução one-shot).
+    private val _eventFlow = MutableSharedFlow<UiEvent>(replay = 0)
 
     // asSharedFlow() converte o Mutable-flow privado em uma versão pública
     // somente-leitura — a View pode observar, mas nunca emitir eventos por conta própria.
@@ -77,6 +76,22 @@ class LoginViewModel : ViewModel() {
     }
 }
 ```
+
+Essa versão já resolve o problema central (nenhum evento é "reproduzido" para um novo observador). Mas ela tem uma limitação sutil: `emit()` é uma função suspend que só retorna quando existe alguém coletando o fluxo **naquele instante**. Se, por algum motivo, o evento for emitido antes de a tela começar a coletar (por exemplo, a UI ainda está sendo montada), a coroutine que chamou `emit()` fica suspensa esperando um coletor aparecer — na prática raro, mas pode gerar um comportamento inesperado.
+
+#### Passo 2 — adicionando um buffer para não bloquear o `emit()`
+
+A solução é dar ao `SharedFlow` um pequeno espaço de buffer e definir o que fazer se ele encher.
+
+```kotlin
+private val _eventFlow = MutableSharedFlow<UiEvent>(
+    replay = 0,
+    extraBufferCapacity = 1,                      // Permite emit() sem suspender mesmo sem coletor ativo no momento
+    onBufferOverflow = BufferOverflow.DROP_OLDEST // Se o buffer estiver cheio, descarta o evento mais antigo
+)
+```
+
+Isso exige mais um import: `kotlinx.coroutines.channels.BufferOverflow`. O restante da classe (`eventFlow`, `onLoginButtonClick`) continua exatamente igual ao Passo 1.
 
 **Entendendo os três parâmetros do `MutableSharedFlow`:**
 

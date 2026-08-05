@@ -143,9 +143,12 @@ Antes de ler o código, vale entender três termos que aparecem o tempo todo em 
 - **`assert`**: uma função de verificação. Se a condição passada for falsa, o teste falha imediatamente e mostra o erro. `assertEquals(esperado, obtido)` compara dois valores; `assertTrue(condição)` verifica se algo é verdadeiro.
 - **mock**: um objeto "de mentira" que substitui uma dependência real durante o teste. `coEvery { repository.fetchTasks() } returns tarefas` diz ao mock: "quando alguém chamar essa função suspend, devolva esta lista, sem de fato buscar nada de verdade".
 
+#### Passo 1 — verificando só o estado final
+
+A forma mais direta de testar um ViewModel é chamar a ação e conferir o valor final do `StateFlow`, sem se preocupar com o que aconteceu no meio do caminho:
+
 ```kotlin
 // TasksViewModelTest.kt (em src/test/)
-import app.cash.turbine.test
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -163,74 +166,88 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TasksViewModelTest {
 
-    // StandardTestDispatcher: um "dispatcher" de teste que controla o tempo virtual das coroutines,
-    // permitindo avançar o relógio manualmente em vez de esperar tempo real passar
+    // StandardTestDispatcher: dispatcher de teste que controla o tempo virtual das coroutines
     private val testDispatcher = StandardTestDispatcher()
-    private lateinit var repository: TasksRepository
-    private lateinit var viewModel: TasksViewModel
 
-    @Before // roda antes de cada teste, para preparar o ambiente
-    fun setup() {
-        // Substitui o Dispatchers.Main (que não existe na JVM local) pelo dispatcher de teste
-        Dispatchers.setMain(testDispatcher)
-        repository = mockk() // cria um mock vazio de TasksRepository
-    }
+    @Before
+    fun setup() = Dispatchers.setMain(testDispatcher) // troca o Dispatchers.Main (inexistente na JVM local)
 
-    @After // roda depois de cada teste, para "limpar a bagunça"
-    fun tearDown() {
-        Dispatchers.resetMain() // devolve o Dispatchers.Main ao estado original
-    }
+    @After
+    fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun `loadTasks emite Success quando repositorio retorna dados`() = runTest {
-        // Arrange: configurar o mock para retornar tarefas
-        val tarefas = listOf(
-            Task(1, "Tarefa 1", false),
-            Task(2, "Tarefa 2", true)
-        )
-        coEvery { repository.fetchTasks() } returns tarefas
+    fun `loadTasks atualiza uiState para Success`() = runTest {
+        // Arrange
+        val repository = mockk<TasksRepository>()
+        coEvery { repository.fetchTasks() } returns listOf(Task(1, "Tarefa 1", false))
+        val viewModel = TasksViewModel(repository)
 
-        viewModel = TasksViewModel(repository)
+        // Act
+        viewModel.loadTasks()
+        testDispatcher.scheduler.advanceUntilIdle() // avança o tempo virtual até a coroutine terminar
 
-        // Act & Assert: observar o StateFlow com Turbine
-        viewModel.uiState.test {
-            // Estado inicial (antes de chamar loadTasks, o ViewModel já começa em Loading)
-            assertEquals(UiState.Loading, awaitItem()) // awaitItem() espera a próxima emissão do Flow
-
-            // Disparar a ação que queremos testar
-            viewModel.loadTasks()
-            // Avança o tempo virtual até que todas as coroutines pendentes terminem
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            // Estado final esperado
-            val result = awaitItem()
-            assertTrue(result is UiState.Success)
-            assertEquals(2, (result as UiState.Success).tasks.size)
-
-            cancelAndIgnoreRemainingEvents() // encerra a observação, ignorando emissões restantes
-        }
+        // Assert
+        val estado = viewModel.uiState.value
+        assertTrue(estado is UiState.Success)
+        assertEquals(1, (estado as UiState.Success).tasks.size)
     }
+}
+```
 
-    @Test
-    fun `loadTasks emite Error quando repositorio lanca excecao`() = runTest {
-        // Arrange: desta vez, o mock lança uma exceção em vez de retornar dados
-        coEvery { repository.fetchTasks() } throws Exception("Servidor indisponível")
+**Limitação**: esse teste só confere o estado *depois* que tudo já terminou. Ele não garante que a tela passou por `Loading` antes do `Success` — se alguém remover, por engano, a linha que emite `Loading` no ViewModel, este teste continua passando mesmo assim, escondendo um bug real (o usuário nunca veria o indicador de carregamento).
 
-        viewModel = TasksViewModel(repository)
+#### Passo 2 — verificando a sequência de estados com Turbine
 
-        // Act & Assert
-        viewModel.uiState.test {
-            assertEquals(UiState.Loading, awaitItem())
+Quando o que importa é a *ordem* das emissões (ex.: "primeiro `Loading`, depois `Success`"), é preciso observar o `Flow` emissão por emissão, em vez de olhar só o valor final. É para isso que serve o **Turbine**:
 
-            viewModel.loadTasks()
-            testDispatcher.scheduler.advanceUntilIdle()
+```kotlin
+import app.cash.turbine.test
 
-            val result = awaitItem()
-            assertTrue(result is UiState.Error)
-            assertEquals("Servidor indisponível", (result as UiState.Error).message)
+@Test
+fun `loadTasks emite Loading e depois Success`() = runTest {
+    val repository = mockk<TasksRepository>()
+    coEvery { repository.fetchTasks() } returns listOf(Task(1, "Tarefa 1", false))
+    val viewModel = TasksViewModel(repository)
 
-            cancelAndIgnoreRemainingEvents()
-        }
+    // .test { } abre uma "escuta" nas emissões do StateFlow
+    viewModel.uiState.test {
+        assertEquals(UiState.Loading, awaitItem()) // 1ª emissão: estado inicial
+
+        viewModel.loadTasks()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val resultado = awaitItem() // 2ª emissão: depois do loadTasks terminar
+        assertTrue(resultado is UiState.Success)
+
+        cancelAndIgnoreRemainingEvents() // encerra a escuta, ignorando emissões restantes
+    }
+}
+```
+
+`awaitItem()` suspende o teste até a próxima emissão chegar — por isso o teste consegue afirmar, em código, que os dois estados aconteceram *nessa ordem*. Essa é a diferença central entre testar um valor único e testar um `Flow`: ele pode emitir várias vezes ao longo do tempo, e às vezes a ordem importa tanto quanto o valor final.
+
+#### Passo 3 — cobrindo o cenário de erro
+
+O mesmo padrão do Passo 2 cobre o caminho de erro — só muda o que o mock devolve:
+
+```kotlin
+@Test
+fun `loadTasks emite Error quando repositorio lanca excecao`() = runTest {
+    val repository = mockk<TasksRepository>()
+    coEvery { repository.fetchTasks() } throws Exception("Servidor indisponível")
+    val viewModel = TasksViewModel(repository)
+
+    viewModel.uiState.test {
+        assertEquals(UiState.Loading, awaitItem())
+
+        viewModel.loadTasks()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val resultado = awaitItem()
+        assertTrue(resultado is UiState.Error)
+        assertEquals("Servidor indisponível", (resultado as UiState.Error).message)
+
+        cancelAndIgnoreRemainingEvents()
     }
 }
 ```
@@ -315,6 +332,8 @@ Testes de UI (interface) verificam se a tela realmente mostra o que deveria, na 
 
 ### Exemplo comentado
 
+#### Passo 1 — a verificação mais simples: um texto aparece na tela
+
 ```kotlin
 // TasksScreenTest.kt (em src/androidTest/)
 import androidx.compose.ui.test.assertIsDisplayed
@@ -330,31 +349,44 @@ class TasksScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun exibeListaDeTarefas() {
-        val tarefas = listOf(
-            Task(1, "Ler documentação", true),
-            Task(2, "Implementar ViewModel", false)
-        )
-
+    fun exibeTarefa() {
         // setContent renderiza o Composable como se estivesse em uma tela real
         composeRule.setContent {
-            TasksList(tasks = tarefas)
+            TasksList(tasks = listOf(Task(1, "Ler documentação", true)))
         }
 
         // onNodeWithText procura um elemento na tela pelo texto exibido
         composeRule.onNodeWithText("Ler documentação").assertIsDisplayed()
-        composeRule.onNodeWithText("Implementar ViewModel").assertIsDisplayed()
+    }
+}
+```
+
+#### Passo 2 — verificando mais de uma tela
+
+O mesmo padrão se repete para qualquer Composable — inclusive telas de erro, que também merecem um teste simples:
+
+```kotlin
+@Test
+fun exibeListaComDuasTarefas() {
+    composeRule.setContent {
+        TasksList(tasks = listOf(
+            Task(1, "Ler documentação", true),
+            Task(2, "Implementar ViewModel", false)
+        ))
     }
 
-    @Test
-    fun exibeTelaDeErroComBotaoRetry() {
-        composeRule.setContent {
-            ErrorScreen(message = "Sem conexão", onRetry = {})
-        }
+    composeRule.onNodeWithText("Ler documentação").assertIsDisplayed()
+    composeRule.onNodeWithText("Implementar ViewModel").assertIsDisplayed()
+}
 
-        composeRule.onNodeWithText("Sem conexão").assertIsDisplayed()
-        composeRule.onNodeWithText("Tentar novamente").assertIsDisplayed()
+@Test
+fun exibeTelaDeErroComBotaoRetry() {
+    composeRule.setContent {
+        ErrorScreen(message = "Sem conexão", onRetry = {})
     }
+
+    composeRule.onNodeWithText("Sem conexão").assertIsDisplayed()
+    composeRule.onNodeWithText("Tentar novamente").assertIsDisplayed()
 }
 ```
 
@@ -372,6 +404,8 @@ class TasksScreenTest {
 3. **Nomes descritivos**: use nomes que descrevam o cenário e o resultado esperado (ex.: `` `loadTasks emite Error quando repositorio lanca excecao` ``) — assim, quando um teste falhar, o nome já ajuda a entender o problema.
 4. **Isole dependências**: use mocks ou fakes para não depender de rede ou banco de dados real — isso torna os testes rápidos e confiáveis, independente da internet estar disponível.
 5. **Priorize o ViewModel**: é onde está a lógica de apresentação e tem o melhor custo-benefício para começar.
+
+> Este módulo cobre o essencial que um dev pleno usa no dia a dia. Testes parametrizados, matchers avançados do MockK (`slot`, `verifyOrder`, `verify(exactly = ...)`) e ferramentas de cobertura de código (JaCoCo, Kover) existem e valem a pena estudar quando surgir a necessidade — mas não são pré-requisito para começar a testar seu app hoje.
 
 ---
 

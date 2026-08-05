@@ -72,11 +72,9 @@ data class Task(
 
 ### DAO (Data Access Object)
 
-O **DAO** ("Objeto de Acesso a Dados") é uma interface onde você declara *o que* quer fazer com o banco (buscar, inserir, atualizar, apagar), usando anotações e SQL. O Room gera a implementação real por trás dos panos — você nunca escreve o código que efetivamente conversa com o SQLite.
+O **DAO** ("Objeto de Acesso a Dados") é uma interface onde você declara *o que* quer fazer com o banco (buscar, inserir, atualizar, apagar), usando anotações e SQL. O Room gera a implementação real por trás dos panos — você nunca escreve o código que efetivamente conversa com o SQLite. Vamos construir essa interface aos poucos.
 
-Duas convenções importantes:
-- **Leituras** costumam retornar `Flow`, para que a UI seja notificada automaticamente sempre que os dados mudarem no banco (sem precisar buscar de novo manualmente).
-- **Escritas** (inserir, atualizar, apagar) são funções `suspend`, porque acessar o disco é uma operação de I/O que pode demorar e não pode travar a UI thread (veja Módulo 3.01).
+#### Passo 1 — ler e inserir
 
 ```kotlin
 import androidx.room.*
@@ -94,13 +92,40 @@ interface TaskDao {
     // existir uma linha com o mesmo id (útil para "upsert": inserir ou atualizar).
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(task: Task)
+}
+```
 
-    // @Delete remove a linha correspondente à entidade passada.
+Repare que a leitura (`getAll`) retorna `Flow`, enquanto a escrita (`upsert`) é uma função `suspend`. Essa é uma convenção importante do Room: **leituras** costumam retornar `Flow`, para que a UI seja notificada automaticamente sempre que os dados mudarem; **escritas** são `suspend`, porque acessar o disco é uma operação de I/O que pode demorar e não pode travar a UI thread (veja Módulo 3.01).
+
+Com isso já conseguimos listar e adicionar tarefas — mas ainda falta remover uma tarefa e marcar como concluída.
+
+#### Passo 2 — adicionando delete e uma atualização customizada
+
+```kotlin
+// @Delete remove a linha correspondente à entidade passada.
+@Delete
+suspend fun delete(task: Task)
+
+// @Query também aceita comandos UPDATE com parâmetros (:done, :id são
+// preenchidos pelos argumentos da função, evitando SQL injection).
+@Query("UPDATE tasks SET done = :done WHERE id = :id")
+suspend fun setDone(id: Long, done: Boolean)
+```
+
+Juntando os dois passos, o `TaskDao` completo:
+
+```kotlin
+@Dao
+interface TaskDao {
+    @Query("SELECT * FROM tasks ORDER BY id DESC")
+    fun getAll(): Flow<List<Task>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(task: Task)
+
     @Delete
     suspend fun delete(task: Task)
 
-    // @Query também aceita comandos UPDATE com parâmetros (:done, :id são
-    // preenchidos pelos argumentos da função, evitando SQL injection).
     @Query("UPDATE tasks SET done = :done WHERE id = :id")
     suspend fun setDone(id: Long, done: Boolean)
 }
@@ -108,18 +133,34 @@ interface TaskDao {
 
 ### Database
 
-A classe `@Database` é o ponto de entrada do Room: ela declara quais entidades existem e fornece acesso aos DAOs. Ela deve ser um **singleton** — ou seja, deve existir só uma instância dela em todo o app, porque abrir várias conexões com o mesmo arquivo de banco pode causar problemas de concorrência e desperdício de memória.
+A classe `@Database` é o ponto de entrada do Room: ela declara quais entidades existem e fornece acesso aos DAOs.
+
+#### Passo 1 — a versão mais simples
 
 ```kotlin
-import android.content.Context
 import androidx.room.Database
-import androidx.room.Room
 import androidx.room.RoomDatabase
 
 // @Database lista todas as entidades (tabelas) e a versão do schema (estrutura do banco).
 @Database(entities = [Task::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     // O Room implementa este método automaticamente, retornando um TaskDao funcional.
+    abstract fun taskDao(): TaskDao
+}
+
+// Em algum lugar do app, para obter uma instância:
+// val db = Room.databaseBuilder(context, AppDatabase::class.java, "app.db").build()
+```
+
+**O problema:** se você chamar `Room.databaseBuilder(...)` toda vez que precisar do banco (por exemplo, em cada Activity ou ViewModel), cada chamada abre uma conexão separada para o mesmo arquivo `.db`. Isso desperdiça memória e pode causar comportamento inconsistente. Precisamos garantir que exista **uma única instância** compartilhada por todo o app — um singleton.
+
+#### Passo 2 — transformando em singleton
+
+```kotlin
+import android.content.Context
+import androidx.room.Room
+
+abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
 
     companion object {
@@ -144,11 +185,36 @@ abstract class AppDatabase : RoomDatabase() {
 }
 ```
 
+Agora, não importa quantas vezes `AppDatabase.get(context)` seja chamado — a primeira chamada cria a instância, e todas as seguintes reaproveitam a mesma.
+
 ### Repository (API pública + cache Room)
 
-Usa a API pública DummyJSON (https://dummyjson.com/todos) para CRUD (Create, Read, Update, Delete — as quatro operações básicas de persistência) e o Room como cache e fonte de verdade para a UI. A ideia: a tela sempre lê do Room (rápido, funciona offline); o Repository sincroniza o Room com o servidor em segundo plano.
+O Repository é o mediador entre o Room e a tela. Vamos construí-lo em etapas, começando pela versão mais simples possível.
 
-Observação (build.gradle): adicione Retrofit (veja `02_retrofit.md` para entender cada peça em detalhe)
+#### Passo 1 — Repository só com Room, sem rede
+
+Se o app não precisa sincronizar com nenhum servidor — por exemplo, uma lista de tarefas 100% local —, o Repository pode ser bem enxuto: ele só repassa o que o DAO já oferece.
+
+```kotlin
+import kotlinx.coroutines.flow.Flow
+
+class TaskRepository(private val dao: TaskDao) {
+    // Fonte de verdade para a UI: a tela nunca fala com o banco diretamente,
+    // ela só observa este Flow.
+    val tasks: Flow<List<Task>> = dao.getAll()
+
+    suspend fun add(title: String) = dao.upsert(Task(title = title))
+    suspend fun toggle(id: Long, done: Boolean) = dao.setDone(id, done)
+    suspend fun delete(task: Task) = dao.delete(task)
+}
+```
+
+**A limitação:** os dados ficam presos naquele dispositivo. Se o usuário trocar de celular ou reinstalar o app, a lista de tarefas se perde — não existe uma cópia "oficial" em nenhum servidor. Para resolver isso, o Repository precisa também conversar com uma API remota.
+
+#### Passo 2 — adicionando a API remota (Retrofit)
+
+Vamos usar a API pública DummyJSON (`https://dummyjson.com/todos`) para CRUD (Create, Read, Update, Delete). Antes do Repository em si, precisamos do DTO (formato do JSON remoto) e da interface Retrofit (veja `02_retrofit.md` para o detalhamento de cada peça):
+
 ```kotlin
 dependencies {
     implementation("com.squareup.retrofit2:retrofit:<versão>")
@@ -156,7 +222,6 @@ dependencies {
 }
 ```
 
-API + DTOs — classes que espelham exatamente o formato JSON da API remota (veja a explicação de DTO no Módulo 3.02):
 ```kotlin
 import retrofit2.http.*
 
@@ -166,10 +231,63 @@ data class RemoteTodo(
     val completed: Boolean
 )
 
-data class RemoteTodoList(
-    val todos: List<RemoteTodo>
-)
+data class RemoteTodoList(val todos: List<RemoteTodo>)
 
+interface TaskApi {
+    @GET("/todos")
+    suspend fun getTodos(@Query("limit") limit: Int = 100): RemoteTodoList
+}
+
+// Função de extensão: converte o DTO remoto para a Entity do Room.
+private fun RemoteTodo.toTask() = Task(id = id, title = todo, done = completed)
+```
+
+Com isso, o Repository pode buscar a lista do servidor e salvá-la no Room, que continua sendo a fonte de verdade da UI:
+
+```kotlin
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+
+class TaskRepository(private val dao: TaskDao) {
+    private val api: TaskApi = Retrofit.Builder()
+        .baseUrl("https://dummyjson.com")
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(TaskApi::class.java)
+
+    val tasks: Flow<List<Task>> = dao.getAll()
+
+    // Sincroniza a lista inicial do servidor para o Room.
+    suspend fun syncFromRemote(limit: Int = 100) {
+        // runCatching evita que uma falha de rede derrube o app; o erro é ignorado
+        // silenciosamente aqui (em produção, você trataria/logaria isso).
+        runCatching {
+            val remote = api.getTodos(limit).todos.map { it.toTask() }
+            remote.forEach { dao.upsert(it) }
+        }
+    }
+
+    suspend fun add(title: String) = dao.upsert(Task(title = title))
+    suspend fun toggle(id: Long, done: Boolean) = dao.setDone(id, done)
+    suspend fun delete(task: Task) = dao.delete(task)
+}
+```
+
+Chame a sincronização inicial no ViewModel, assim que ele for criado:
+```kotlin
+// dentro de TaskViewModel
+init {
+    viewModelScope.launch { repo.syncFromRemote() }
+}
+```
+
+**A limitação:** agora a lista inicial vem do servidor, mas `add`, `toggle` e `delete` continuam mexendo só no Room — as mudanças feitas no app não são enviadas de volta para o servidor.
+
+#### Passo 3 — enviando escritas para o servidor, com fallback local
+
+Para cada escrita, o Repository tenta primeiro no servidor e, se der certo, reflete no Room. Se a chamada de rede falhar (sem internet, por exemplo), ele aplica a mudança só localmente — assim o usuário não perde a ação.
+
+```kotlin
 data class AddTodoBody(
     val todo: String,
     val completed: Boolean = false,
@@ -196,39 +314,19 @@ interface TaskApi {
 }
 ```
 
-Repository completo (sincroniza remoto ↔ local e expõe `Flow` do Room para a UI). Este é o exemplo "completo", com sincronização remota — mais abaixo mostramos uma versão simplificada, só com o Room, para quando você não precisa de rede.
-
 ```kotlin
-import kotlinx.coroutines.flow.Flow
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-
-// Função de extensão: converte o DTO remoto para a Entity do Room.
-private fun RemoteTodo.toTask() = Task(
-    id = id,
-    title = todo,
-    done = completed
-)
-
 class TaskRepository(private val dao: TaskDao) {
-    // Retrofit pronto para uso (em um app real, isso viria injetado, veja Módulo 3.07)
     private val api: TaskApi = Retrofit.Builder()
         .baseUrl("https://dummyjson.com")
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(TaskApi::class.java)
 
-    // Fonte de verdade para a UI: a tela nunca fala com a rede diretamente,
-    // ela só observa este Flow, que reflete o estado do banco local.
     val tasks: Flow<List<Task>> = dao.getAll()
 
-    // Sincroniza a lista inicial do servidor para o Room.
     suspend fun syncFromRemote(limit: Int = 100) {
-        // runCatching evita que uma falha de rede derrube o app; o erro é ignorado
-        // silenciosamente aqui (em produção, você trataria/logaria isso).
         runCatching {
             val remote = api.getTodos(limit).todos.map { it.toTask() }
-            // Upsert simples item a item (mantém compatibilidade com o DAO atual).
             remote.forEach { dao.upsert(it) }
         }
     }
@@ -239,8 +337,7 @@ class TaskRepository(private val dao: TaskDao) {
             val created = api.add(AddTodoBody(todo = title)).toTask()
             dao.upsert(created)
         }.onFailure {
-            // Fallback local caso a API falhe: cria a tarefa só localmente,
-            // para o usuário não perder a ação mesmo sem internet.
+            // Fallback local caso a API falhe: cria a tarefa só localmente.
             dao.upsert(Task(title = title))
         }
     }
@@ -258,35 +355,13 @@ class TaskRepository(private val dao: TaskDao) {
 
     // Exclui no servidor e no cache local.
     suspend fun delete(task: Task) {
-        runCatching {
-            api.delete(task.id)
-        }
+        runCatching { api.delete(task.id) }
         dao.delete(task) // Remove localmente mesmo que a chamada remota falhe.
     }
 }
 ```
 
-Dica: chame uma sincronização inicial no ViewModel, assim que ele for criado:
-```kotlin
-// dentro de TaskViewModel
-init {
-    viewModelScope.launch { repo.syncFromRemote() }
-}
-```
-
-> **Versão simplificada (só Room, sem rede):** se o seu app não precisa sincronizar com um servidor — por exemplo, uma lista de tarefas 100% local — o Repository pode ser bem mais enxuto, sem a parte de Retrofit. Esta é a versão "essencial" equivalente à de cima, útil como ponto de partida:
-> ```kotlin
-> import kotlinx.coroutines.flow.Flow
->
-> class TaskRepository(private val dao: TaskDao) {
->     val tasks: Flow<List<Task>> = dao.getAll()
->
->     suspend fun add(title: String) = dao.upsert(Task(title = title))
->     suspend fun toggle(id: Long, done: Boolean) = dao.setDone(id, done)
->     suspend fun delete(task: Task) = dao.delete(task)
-> }
-> ```
-> Use a versão completa (com Retrofit) quando precisar manter os dados sincronizados com um servidor; use esta versão simples quando o Room for a única fonte de dados.
+Use a versão do Passo 1 (só Room) quando o Room for a única fonte de dados; use a versão completa do Passo 3 quando precisar manter os dados sincronizados com um servidor.
 
 ### ViewModel (coroutines + Flow)
 

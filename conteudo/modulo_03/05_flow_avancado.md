@@ -115,7 +115,78 @@ class ProdutoViewModel(private val repository: ProdutoRepository) : ViewModel() 
 
 ## 4. Combinando Múltiplos Flows
 
-Cenário realista: tela de produtos com campo de busca e filtro de categoria.
+Cenário realista: tela de produtos com campo de busca e filtro de categoria. Em vez de já mostrar a versão final combinando três fontes de dados, vamos construí-la incrementalmente.
+
+Primeiro, o estado que a tela vai exibir:
+
+```kotlin
+data class CatalogoUiState(
+    val produtos: List<Produto> = emptyList(),
+    val query: String = "",
+    val categoria: String = "Todas"
+)
+```
+
+#### Passo 1 — só a lista de produtos, sem filtro nenhum
+
+```kotlin
+class CatalogoViewModel(private val repository: ProdutoRepository) : ViewModel() {
+    val uiState: StateFlow<CatalogoUiState> = repository
+        .observarProdutos() // Flow<List<Produto>> vindo do Room
+        .map { produtos -> CatalogoUiState(produtos = produtos) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CatalogoUiState()
+        )
+}
+```
+
+**A limitação:** a tela sempre mostra a lista inteira. Não existe forma de o usuário filtrar por texto ou por categoria.
+
+#### Passo 2 — adicionando busca por texto com `combine`
+
+Para reagir ao que o usuário digita, precisamos de um segundo `Flow` (o texto da busca) e combiná-lo com o Flow de produtos. `combine` emite um novo valor sempre que **qualquer uma** das fontes muda.
+
+```kotlin
+class CatalogoViewModel(private val repository: ProdutoRepository) : ViewModel() {
+    private val _query = MutableStateFlow("")
+
+    val uiState: StateFlow<CatalogoUiState> = combine(
+        _query,
+        repository.observarProdutos()
+    ) { query, produtos ->
+        val filtrados = produtos.filter { query.isBlank() || it.nome.contains(query, ignoreCase = true) }
+        CatalogoUiState(produtos = filtrados, query = query)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = CatalogoUiState()
+    )
+
+    fun atualizarBusca(texto: String) { _query.value = texto }
+}
+```
+
+**A limitação:** a cada letra digitada, `_query` emite um novo valor e o filtro roda de novo imediatamente — para uma busca em uma lista grande, isso pode significar recalcular a cada tecla, o que é desnecessário e pode deixar a digitação "travada".
+
+#### Passo 3 — evitando recomputar a cada tecla com `debounce`
+
+```kotlin
+val uiState: StateFlow<CatalogoUiState> = combine(
+    _query.debounce(400L), // Só emite depois de 400ms sem uma nova letra
+    repository.observarProdutos()
+) { query, produtos ->
+    val filtrados = produtos.filter { query.isBlank() || it.nome.contains(query, ignoreCase = true) }
+    CatalogoUiState(produtos = filtrados, query = query)
+}.stateIn(/* ... */)
+```
+
+A única mudança foi acrescentar `.debounce(400L)` ao Flow de busca. Agora o filtro só roda quando o usuário faz uma pausa de 400ms ao digitar.
+
+#### Passo 4 — adicionando o filtro de categoria
+
+Falta um terceiro filtro: a categoria selecionada. Adicionamos mais um `MutableStateFlow` e mais uma fonte ao `combine` (que aceita mais de dois Flows):
 
 ```kotlin
 class CatalogoViewModel(private val repository: ProdutoRepository) : ViewModel() {
@@ -149,6 +220,8 @@ class CatalogoViewModel(private val repository: ProdutoRepository) : ViewModel()
     fun selecionarCategoria(cat: String) { _categoria.value = cat }
 }
 ```
+
+Essa é a versão final: três fontes (`_query`, `_categoria`, `observarProdutos()`) combinadas em um único `StateFlow` de estado da tela.
 
 ---
 

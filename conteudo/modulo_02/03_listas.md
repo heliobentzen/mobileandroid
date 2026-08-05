@@ -83,7 +83,7 @@ fun UserList(users: List<User>) {
         // Isso é essencial para o Compose preservar corretamente scroll e estado
         // ao inserir, remover ou reordenar usuários.
         items(users, key = { it.id }) { user ->
-            UserItem(user = user, modifier = Modifier.animateItemPlacement())
+            UserItem(user = user)
         }
     }
 }
@@ -93,7 +93,7 @@ fun UserList(users: List<User>) {
 
 ## Passo 4: Animações Avançadas
 
-Adicione animações para inserção e remoção de itens usando `Modifier.animateItemPlacement()`, que anima suavemente a mudança de posição de um item quando a lista é reordenada.
+A lista acima já funciona, mas quando um item é adicionado ou removido, os outros itens "pulam" de posição instantaneamente. Para animar essa reposição, adicione `Modifier.animateItemPlacement()` ao item — é o único elemento novo em relação ao Passo 3.
 
 ```kotlin
 @Composable
@@ -104,6 +104,8 @@ fun AnimatedUserList() {
 
     LazyColumn {
         items(users, key = { it.id }) { user ->
+            // animateItemPlacement() anima suavemente a mudança de posição de um
+            // item sempre que a lista é reordenada, inserida ou tem itens removidos.
             UserItem(user = user, modifier = Modifier.animateItemPlacement())
         }
     }

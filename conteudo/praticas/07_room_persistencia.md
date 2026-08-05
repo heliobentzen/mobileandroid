@@ -45,6 +45,8 @@ Sem persistência local, todo dado do app desaparece assim que o usuário fecha 
 
 ### Passo a Passo
 
+Vamos construir aos poucos: primeiro só ler e criar anotações, depois evoluir para deletar e editar.
+
 **1. Entity — Representa a tabela** (`Anotacao.kt`):
 
 ```kotlin
@@ -66,7 +68,7 @@ data class Anotacao(
 - `@PrimaryKey(autoGenerate = true)`: o banco gera o ID automaticamente.
 - Os outros campos viram colunas da tabela.
 
-**2. DAO — Define as operações** (`AnotacaoDao.kt`):
+**2. DAO — comece só com ler e inserir** (`AnotacaoDao.kt`):
 
 ```kotlin
 import androidx.room.*
@@ -79,20 +81,13 @@ interface AnotacaoDao {
     @Query("SELECT * FROM anotacoes ORDER BY criadaEm DESC")
     fun buscarTodas(): Flow<List<Anotacao>>
 
-    @Query("SELECT * FROM anotacoes WHERE id = :id")
-    suspend fun buscarPorId(id: Long): Anotacao?
-
     // REPLACE: se já existir um registro com o mesmo ID, substitui
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun inserir(anotacao: Anotacao)
-
-    @Delete
-    suspend fun deletar(anotacao: Anotacao)
-
-    @Query("UPDATE anotacoes SET titulo = :titulo, conteudo = :conteudo WHERE id = :id")
-    suspend fun atualizar(id: Long, titulo: String, conteudo: String)
 }
 ```
+
+Com só essas duas operações já dá para ver a lista e adicionar anotações — falta deletar e editar, o que resolvemos no passo 6.
 
 **3. Database — Configuração do banco** (`AppDatabase.kt`):
 
@@ -131,7 +126,7 @@ abstract class AppDatabase : RoomDatabase() {
 }
 ```
 
-**4. ViewModel** (`AnotacaoViewModel.kt`):
+**4. ViewModel — leitura e criação** (`AnotacaoViewModel.kt`):
 
 ```kotlin
 import androidx.lifecycle.ViewModel
@@ -156,22 +151,12 @@ class AnotacaoViewModel(private val dao: AnotacaoDao) : ViewModel() {
             dao.inserir(Anotacao(titulo = titulo.trim(), conteudo = conteudo.trim()))
         }
     }
-
-    fun deletar(anotacao: Anotacao) {
-        viewModelScope.launch {
-            dao.deletar(anotacao)
-        }
-    }
-
-    fun atualizar(id: Long, titulo: String, conteudo: String) {
-        viewModelScope.launch {
-            dao.atualizar(id, titulo.trim(), conteudo.trim())
-        }
-    }
 }
 ```
 
-**5. Tela principal** (`AnotacoesScreen.kt`):
+**5. Tela — lista e criação** (`AnotacoesScreen.kt`):
+
+Nesta primeira versão a tela já funciona de ponta a ponta: você consegue criar uma anotação pelo diálogo e vê-la aparecer na lista, persistida no banco. Ainda não há como deletar — isso vem no passo 8.
 
 ```kotlin
 import androidx.compose.foundation.layout.*
@@ -179,7 +164,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -217,23 +201,15 @@ fun AnotacoesScreen(viewModel: AnotacaoViewModel) {
             ) {
                 items(anotacoes, key = { it.id }) { anotacao ->
                     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(anotacao.titulo, style = MaterialTheme.typography.titleMedium)
-                                if (anotacao.conteudo.isNotBlank()) {
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        anotacao.conteudo,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 3
-                                    )
-                                }
-                            }
-                            IconButton(onClick = { viewModel.deletar(anotacao) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Deletar")
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(anotacao.titulo, style = MaterialTheme.typography.titleMedium)
+                            if (anotacao.conteudo.isNotBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    anotacao.conteudo,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 3
+                                )
                             }
                         }
                     }
@@ -296,7 +272,66 @@ fun DialogoNovaAnotacao(
 }
 ```
 
-**6. Conectando na MainActivity**:
+**6. Evolua o DAO — adicione deletar e atualizar:**
+
+Agora que a criação funciona, complete o DAO com as duas operações que faltam:
+
+```kotlin
+    @Delete
+    suspend fun deletar(anotacao: Anotacao)
+
+    @Query("UPDATE anotacoes SET titulo = :titulo, conteudo = :conteudo WHERE id = :id")
+    suspend fun atualizar(id: Long, titulo: String, conteudo: String)
+```
+
+**7. Evolua o ViewModel — exponha deletar e atualizar:**
+
+```kotlin
+    fun deletar(anotacao: Anotacao) {
+        viewModelScope.launch {
+            dao.deletar(anotacao)
+        }
+    }
+
+    fun atualizar(id: Long, titulo: String, conteudo: String) {
+        viewModelScope.launch {
+            dao.atualizar(id, titulo.trim(), conteudo.trim())
+        }
+    }
+```
+
+**8. Evolua a tela — adicione o botão de deletar:**
+
+No `Card` de cada anotação (dentro do `items { }`), troque a `Column` sozinha por uma `Row` com um `IconButton` ao lado:
+
+```kotlin
+import androidx.compose.material.icons.filled.Delete
+
+// Dentro de items(anotacoes, key = { it.id }) { anotacao -> ... }
+ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+    Row(
+        modifier = Modifier.padding(16.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(anotacao.titulo, style = MaterialTheme.typography.titleMedium)
+            if (anotacao.conteudo.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    anotacao.conteudo,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 3
+                )
+            }
+        }
+        IconButton(onClick = { viewModel.deletar(anotacao) }) {
+            Icon(Icons.Default.Delete, contentDescription = "Deletar")
+        }
+    }
+}
+```
+
+**9. Conectando na MainActivity**:
 
 ```kotlin
 class MainActivity : ComponentActivity() {

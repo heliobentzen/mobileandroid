@@ -72,23 +72,57 @@ Dica: pense em cada Composable como uma pequena função de transformação de d
 
 > **Por que precisamos de `remember`?** Sem ele, toda vez que o Composable fosse recomposto, uma nova variável de estado seria criada do zero, perdendo o valor anterior — como se a "memória" do componente fosse apagada a cada atualização de tela.
 
-Exemplo contador:
+Vamos construir um contador simples em três passos, para ver exatamente o papel de cada peça.
+
+#### Passo 1 — uma variável comum (não funciona)
 
 ```kotlin
-import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+@Composable
+fun SimpleCounter() {
+    var count = 0 // variável Kotlin comum, sem relação com o Compose
+
+    Column {
+        Text("Você clicou $count vezes.")
+        Button(onClick = { count++ }) {
+            Text("Incrementar")
+        }
+    }
+}
+```
+
+Clique no botão e nada muda na tela. O Compose não tem como saber que `count` mudou — incrementar uma variável comum não avisa ninguém, então não há recomposição.
+
+#### Passo 2 — usando `mutableStateOf` (ainda incompleto)
+
+```kotlin
+@Composable
+fun SimpleCounter() {
+    val count = mutableStateOf(0)
+    // mutableStateOf cria um estado OBSERVÁVEL: mudanças nele avisam o Compose
+
+    Column {
+        Text("Você clicou ${count.value} vezes.")
+        Button(onClick = { count.value++ }) {
+            Text("Incrementar")
+        }
+    }
+}
+```
+
+Melhor, mas ainda tem um problema: toda vez que `SimpleCounter` é recomposto, a linha `mutableStateOf(0)` roda de novo e cria um **novo** estado, zerado. Na prática, o contador nunca passa de 1 antes de resetar.
+
+#### Passo 3 — adicionando `remember` (e o atalho `by`)
+
+```kotlin
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
 @Composable
 fun SimpleCounter() {
-    // 'remember' mantém o valor entre recomposições
-    // 'by' é um atalho do Kotlin (chamado "delegated property") que permite
-    // ler/escrever 'count' diretamente, sem precisar escrever 'count.value'
+    // 'remember' mantém o valor entre recomposições — o mutableStateOf
+    // só roda uma vez, na primeira composição.
+    // 'by' é um atalho do Kotlin (delegated property) que permite ler/escrever
+    // 'count' diretamente, sem precisar escrever 'count.value'.
     var count by remember { mutableStateOf(0) }
 
     Column {
@@ -103,6 +137,8 @@ fun SimpleCounter() {
     }
 }
 ```
+
+Agora o contador funciona como esperado: o estado sobrevive às recomposições e a tela se atualiza sozinha a cada clique.
 
 Evite guardar em estado do Compose:
 - Objetos pesados sem necessidade (isso pode deixar recomposições mais lentas).
@@ -128,7 +164,13 @@ Regra prática:
 - Composable **stateless** ("burro") recebe: valor + callbacks (funções chamadas quando algo acontece).
 - Composable **stateful** ("inteligente") guarda: estado interno + transforma eventos em mudanças de estado.
 
-Exemplo refatorado (o mesmo contador da seção anterior, agora separado em duas partes):
+#### Passo 1 — o problema: o `SimpleCounter` da seção 2
+
+O `SimpleCounter` que você acabou de construir guarda o `remember` **dentro dele mesmo**. Isso funciona, mas tem um custo: esse Composable só pode ser usado exatamente daquele jeito. Você não consegue reaproveitar o visual do contador com outra fonte de dados (por exemplo, um valor vindo de um `ViewModel`), nem testar a parte visual sem também testar a lógica do `remember` junto.
+
+#### Passo 2 — separando em stateless + stateful
+
+A solução é dividir em dois Composables: um que só desenha (`CounterStateless`) e outro que guarda o estado e passa para o primeiro (`CounterStateful`).
 
 ```kotlin
 import androidx.compose.foundation.layout.Column

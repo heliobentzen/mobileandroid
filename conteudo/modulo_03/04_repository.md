@@ -69,9 +69,9 @@ dependencies {
 }
 ```
 
-## Entity + DAO + Database (Room)
+## Entity + DAO (Room)
 
-A `PostEntity` representa a tabela local; o `PostDao` declara como ler e escrever nela. Aqui as leituras são funções `suspend` (busca única), diferente do Módulo 3.03, onde vimos leituras via `Flow` (observação contínua) — as duas abordagens são válidas, a escolha depende de a tela precisar ou não reagir automaticamente a mudanças no banco.
+A `PostEntity` representa a tabela local; o `PostDao` declara como ler e escrever nela. Aqui as leituras são funções `suspend` (busca única), diferente do Módulo 3.03, onde vimos leituras via `Flow` (observação contínua) — as duas abordagens são válidas, a escolha depende de a tela precisar ou não reagir automaticamente a mudanças no banco. Como o Módulo 3.03 já explicou `@Entity` e `@Dao` em detalhe, aqui vamos direto ao ponto:
 
 ```kotlin
 import androidx.room.*
@@ -97,7 +97,13 @@ interface PostDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(posts: List<PostEntity>)
 }
+```
 
+## Database (Room)
+
+Igual ao que já vimos no Módulo 3.03: um `@Database` singleton que dá acesso ao `PostDao`.
+
+```kotlin
 // @Database: ponto de entrada do Room, lista as entidades e a versão do schema.
 @Database(entities = [PostEntity::class], version = 1)
 abstract class AppDatabase : RoomDatabase() {

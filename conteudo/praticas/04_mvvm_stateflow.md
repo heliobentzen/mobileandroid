@@ -174,7 +174,9 @@ data class TarefaUiState(
 )
 ```
 
-**3. ViewModel** (`TarefaViewModel.kt`):
+**3. ViewModel — comece só com criar tarefas** (`TarefaViewModel.kt`):
+
+Primeiro, monte o ViewModel com o mínimo para digitar e adicionar uma tarefa. Ainda não dá para concluir nem remover — isso vem no próximo passo.
 
 ```kotlin
 import androidx.lifecycle.ViewModel
@@ -208,7 +210,14 @@ class TarefaViewModel : ViewModel() {
             )
         }
     }
+}
+```
 
+**4. ViewModel — adicione concluir, remover e limpar a mensagem:**
+
+Com a criação funcionando, complete o ViewModel com o restante das ações que a tela vai precisar:
+
+```kotlin
     fun alternarConclusao(id: Int) {
         _uiState.update { estado ->
             estado.copy(
@@ -228,10 +237,9 @@ class TarefaViewModel : ViewModel() {
     fun limparMensagem() {
         _uiState.update { it.copy(mensagem = null) }
     }
-}
 ```
 
-**4. Tela** (`TarefaScreen.kt`):
+**5. Tela** (`TarefaScreen.kt`):
 
 ```kotlin
 import androidx.compose.foundation.layout.*

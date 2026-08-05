@@ -12,20 +12,55 @@ Este arquivo cobre conceitos de Kotlin essenciais para o Módulo 2 (MVVM, StateF
 
 **Por que isso importa.** Sem scope functions, código que configura um objeto ou faz uma checagem de nulo com transformação fica mais verboso e repetitivo — você precisaria repetir o nome da variável várias vezes, ou usar blocos `if` mais longos. As scope functions deixam esse tipo de código mais curto e legível, desde que você saiba escolher a função certa. A diferença entre as cinco está em **como acessar o objeto** (`this` ou `it`) e **o que a função retorna** (o resultado do bloco, ou o próprio objeto).
 
+Vamos ver o "antes e depois" com duas delas — `apply` e `let` — e depois olhar as outras três com o mesmo princípio.
+
+#### Passo 1 — o problema que `apply` resolve
+
+```kotlin
+val params = Bundle()
+params.putString("titulo", "Meu App") // repetindo "params." em toda linha
+params.putInt("versao", 1)
+// 'params' já configurado
+```
+
+Isso funciona, mas repete `params.` a cada linha — puro ruído visual quando você está só configurando um objeto recém-criado.
+
+```kotlin
+// -- apply: acessa via 'this', retorna o próprio objeto --
+val params = Bundle().apply {
+    putString("titulo", "Meu App") // dentro do bloco, 'this' já é o Bundle
+    putInt("versao", 1)            // então não precisamos repetir "params."
+} // 'params' é o Bundle já configurado, porque apply retorna o próprio objeto
+```
+
+#### Passo 2 — o problema que `let` resolve
+
+```kotlin
+val nome: String? = intent.getStringExtra("usuario") // pode ser nulo
+if (nome != null) {
+    textView.text = "Bem-vindo, $nome"
+}
+```
+
+Um `if` para tratar um valor opcional funciona, mas em uma cadeia de transformações (`?.map { }.let { }` etc.) fica mais difícil de encadear do que uma expressão única.
+
 ```kotlin
 // -- let: acessa via 'it', retorna resultado do bloco --
-val nome: String? = intent.getStringExtra("usuario") // pode ser nulo
 nome?.let {
-    textView.text = "Bem-vindo, $it" // exibe só se não for nulo
+    textView.text = "Bem-vindo, $it" // o bloco só roda se 'nome' não for nulo
 }
+```
 
-// -- run: acessa via 'this', retorna resultado do bloco --
+#### As outras três, mesmo princípio
+
+```kotlin
+// -- run: acessa via 'this', retorna resultado do bloco (como 'let', mas sem 'it') --
 val tamanho = "Kotlin Android".run {
     uppercase() // transforma em maiúsculas
     length      // retorna o comprimento (último valor do bloco)
 }
 
-// -- with: igual a run, mas o objeto vem como argumento --
+// -- with: igual a 'run', mas o objeto vem como argumento, não como receiver --
 val config = StringBuilder()
 val resultado = with(config) {
     append("debug=true")  // 'this' é o StringBuilder
@@ -33,13 +68,7 @@ val resultado = with(config) {
     toString()             // retorna a string final
 }
 
-// -- apply: acessa via 'this', retorna o próprio objeto --
-val params = Bundle().apply {
-    putString("titulo", "Meu App") // configura o Bundle
-    putInt("versao", 1)            // adiciona outro parâmetro
-} // 'params' é o Bundle já configurado
-
-// -- also: acessa via 'it', retorna o próprio objeto --
+// -- also: acessa via 'it', retorna o próprio objeto (como 'apply', mas com 'it') --
 val lista = mutableListOf("A", "B").also {
     println("Lista criada com ${it.size} itens") // log sem alterar a lista
 }
@@ -71,6 +100,27 @@ val lista = mutableListOf("A", "B").also {
 
 **Por que isso importa.** Essa restrição é o que permite ao compilador garantir que um `when` cubra **todos** os casos possíveis, sem precisar de um `else` — ideal para modelar **estados de UI**, onde você quer ter certeza absoluta de que tratou toda possibilidade (carregando, sucesso, erro), sem esquecer nenhuma.
 
+#### Passo 1 — o problema: uma classe comum não é limitada
+
+```kotlin
+open class UiState
+class Carregando : UiState()
+class Sucesso(val itens: List<String>) : UiState()
+class Erro(val mensagem: String) : UiState()
+
+fun renderizar(estado: UiState) = when (estado) {
+    is Carregando -> mostrarLoading()
+    is Sucesso    -> mostrarLista(estado.itens)
+    is Erro       -> mostrarErro(estado.mensagem)
+    else -> {} // o compilador EXIGE esse 'else', porque 'open class' pode ter
+                // subtipos criados em qualquer outro lugar do código-fonte
+}
+```
+
+Como `UiState` é uma `open class` comum, o compilador não tem como saber se existem outros subtipos além desses três — talvez definidos em outro arquivo, ou até em outro módulo. Por isso ele obriga um `else`, mesmo que hoje você tenha certeza de que só existem esses três estados. Se amanhã alguém adicionar um quarto estado e esquecer de tratá-lo aqui, o `else` "engole" o erro silenciosamente.
+
+#### Passo 2 — trocando por `sealed class`
+
 ```kotlin
 // Modela os estados possíveis de uma tela de listagem
 sealed class UiState {
@@ -83,9 +133,12 @@ fun renderizar(estado: UiState) = when (estado) {
     is UiState.Carregando -> mostrarLoading()       // exibe indicador de progresso
     is UiState.Sucesso    -> mostrarLista(estado.itens) // smart cast automático
     is UiState.Erro       -> mostrarErro(estado.mensagem)
-    // sem 'else' — o compilador exige todos os subtipos
+    // sem 'else' — o compilador SABE que só existem esses três subtipos
+    // (todos declarados aqui dentro), e exige que você trate todos eles
 }
 ```
+
+Agora, se alguém adicionar um quarto subtipo de `UiState` no futuro, o compilador vai apontar erro em todo `when` que não tratar esse novo caso — o bug é pego em tempo de compilação, não descoberto depois em produção.
 
 **Sealed interface** funciona da mesma forma, mas permite que os subtipos herdem de outras classes ao mesmo tempo (uma classe em Kotlin só pode herdar de uma classe, mas pode implementar várias interfaces):
 
@@ -108,22 +161,44 @@ data class Falha(val erro: Throwable) : Resultado
 
 **O que é.** Você viu o básico de extension functions no arquivo 02 — funções que adicionam comportamento a classes existentes **sem modificá-las** (sem precisar herdar ou alterar o código-fonte original). Muito comuns em projetos Android para "turbinar" classes do próprio sistema.
 
-**Por que isso importa.** Sem extensões, você precisaria de funções utilitárias soltas (como `fun formatarComoReais(centavos: Int): String`), que exigem passar o objeto como argumento em vez de chamar como método — menos legível e menos natural de encadear com outras chamadas.
+**Por que isso importa.** Sem extensões, você precisaria de funções utilitárias soltas, que exigem passar o objeto como argumento em vez de chamar como método — menos legível e menos natural de encadear com outras chamadas.
+
+#### Passo 1 — uma função utilitária solta
+
+```kotlin
+fun formatarComoReais(centavos: Int): String {
+    val reais = centavos / 100        // parte inteira
+    val resto = centavos % 100        // parte decimal
+    return "R$ $reais,${resto.toString().padStart(2, '0')}" // formata com duas casas
+}
+
+val preco = 1999 // centavos
+println(formatarComoReais(preco)) // "R$ 19,99"
+```
+
+Funciona, mas a chamada `formatarComoReais(preco)` lê "de fora para dentro" — não parece que `preco` está fazendo algo, parece que uma função externa está manipulando ele.
+
+#### Passo 2 — convertendo em extension function
 
 ```kotlin
 // Extensão para formatar centavos como moeda brasileira
 fun Int.formatarReais(): String {
-    val reais = this / 100        // parte inteira
-    val centavos = this % 100     // parte decimal
-    return "R$ $reais,${centavos.toString().padStart(2, '0')}" // formata com duas casas
+    val reais = this / 100        // 'this' é o próprio Int em que a extensão foi chamada
+    val centavos = this % 100
+    return "R$ $reais,${centavos.toString().padStart(2, '0')}"
 }
 
-val preco = 1999 // centavos
-println(preco.formatarReais()) // "R$ 19,99"
+val preco = 1999
+println(preco.formatarReais()) // "R$ 19,99" — agora lê como um método do próprio Int
+```
 
-// Extensão útil: converter dp para pixels no Android
+Note que o corpo da função é praticamente o mesmo — a diferença é só declarar `Int.formatarReais()` em vez de `formatarComoReais(centavos: Int)`, o que muda como ela é chamada.
+
+Uma extensão também pode receber parâmetros normalmente, além do `this` implícito — útil para casos que precisam de um dado externo (como o `Context`, no exemplo comum de converter dp para pixels no Android):
+
+```kotlin
 fun Int.dpToPx(context: Context): Int {
-    val densidade = context.resources.displayMetrics.density // fator de escala
+    val densidade = context.resources.displayMetrics.density // fator de escala da tela
     return (this * densidade).toInt() // multiplica e arredonda
 }
 ```
@@ -139,7 +214,19 @@ fun Int.dpToPx(context: Context): Int {
 
 **O que é.** **Generics** ("genéricos") permitem criar classes e funções que operam sobre **qualquer tipo**, mantendo a segurança de tipos do compilador — ou seja, o compilador continua verificando que você está usando os tipos corretos, mesmo sem saber de antemão qual tipo específico será usado.
 
-**Por que isso importa.** Sem generics, você precisaria criar uma classe separada para cada tipo de dado (`RespostaString`, `RespostaInt`, `RespostaUsuario`...) ou usar um tipo genérico demais como `Any` (que aceita qualquer coisa, mas perde a segurança de tipo — você só descobriria um erro de tipo em tempo de execução, não em compilação). Generics resolvem isso com uma única classe reutilizável e segura.
+**Por que isso importa.** Sem generics, você precisaria criar uma classe separada para cada tipo de dado, ou usar um tipo genérico demais como `Any` (que aceita qualquer coisa, mas perde a segurança de tipo — você só descobriria um erro de tipo em tempo de execução, não em compilação). Generics resolvem isso com uma única classe reutilizável e segura.
+
+#### Passo 1 — o problema: uma classe por tipo
+
+```kotlin
+class RespostaString(val dados: String?, val erro: String? = null)
+class RespostaInt(val dados: Int?, val erro: String? = null)
+// ...e assim por diante, uma classe nova para cada tipo de dado que a rede retornar
+```
+
+O código das duas classes é idêntico, exceto pelo tipo de `dados` — duplicação pura, que só cresce conforme aparecem novos tipos de resposta.
+
+#### Passo 2 — generalizando com `<T>`
 
 ```kotlin
 // Classe genérica que encapsula um resultado de rede
@@ -150,8 +237,15 @@ class Resposta<T>(
 
 val respostaUsuario = Resposta(dados = "João") // T = String
 val respostaIdade = Resposta(dados = 25)       // T = Int
+```
 
-// Função genérica com restrição (upper bound)
+Uma única classe atende qualquer tipo, e o compilador continua checando os tipos normalmente (`respostaUsuario.dados` é `String?`, não `Any?`).
+
+#### Restringindo o tipo genérico (upper bound)
+
+Às vezes o corpo da função genérica precisa de um comportamento específico do tipo — por exemplo, comparar dois valores com `>`, que nem todo tipo suporta:
+
+```kotlin
 fun <T : Comparable<T>> maiorEntre(a: T, b: T): T {
     // '<T : Comparable<T>>' restringe T a tipos que sabem se comparar entre si
     // (como Int, String) — sem essa restrição, "a > b" não compilaria,

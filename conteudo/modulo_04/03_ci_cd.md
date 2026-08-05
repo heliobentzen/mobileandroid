@@ -49,7 +49,9 @@ O **GitHub Actions** é a ferramenta de CI/CD integrada ao GitHub — ou seja, j
 
 Um **workflow** é o arquivo YAML completo que descreve a automação. Dentro dele, existem **jobs** (tarefas maiores, que rodam em uma máquina virtual própria) e, dentro de cada job, **steps** (passos individuais, executados em sequência).
 
-### Exemplo comentado: estrutura básica de um workflow
+### Exemplo comentado: construindo o pipeline em passos
+
+#### Passo 1 — a versão mais simples: build e testes
 
 ```yaml
 # Nome exibido na aba "Actions" do repositório
@@ -62,27 +64,26 @@ on:
   pull_request:
     branches: [ main ] # executa ao abrir PR para a main
 
-# Tarefas (jobs) que serão executadas
 jobs:
   build: # nome do job (você escolhe)
     runs-on: ubuntu-latest # máquina virtual utilizada (Linux, sempre a versão mais recente)
 
     steps:
-      # Passo 1: baixar o código do repositório para dentro da máquina virtual
+      # Baixar o código do repositório para dentro da máquina virtual
       - uses: actions/checkout@v4
 
-      # Passo 2: configurar o JDK necessário para o Gradle funcionar
+      # Configurar o JDK necessário para o Gradle funcionar
       - name: Configurar JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin' # distribuição do JDK (implementação usada)
           java-version: '17'
 
-      # Passo 3: compilar o projeto
+      # Compilar o projeto
       - name: Build do projeto
         run: ./gradlew assembleDebug # gera o APK de debug
 
-      # Passo 4: rodar os testes unitários
+      # Rodar os testes unitários
       - name: Executar testes unitários
         run: ./gradlew test # executa todos os testes da pasta test/
 ```
@@ -93,50 +94,24 @@ Alguns termos novos nesse exemplo:
 - **`run:`**: executa um comando de terminal diretamente, como você faria na sua própria máquina.
 - **`with:`**: passa parâmetros extras para uma ação (`uses:`), como a versão do Java que você quer instalar.
 
-> **Dica**: o workflow acima já cobre os cenários mais comuns — build e testes a cada push ou PR (pull request, ou seja, uma proposta de mudança de código que ainda vai ser revisada antes de entrar na branch principal).
+Salve esse arquivo como `.github/workflows/android-ci.yml`. Isso já cobre o cenário mais comum: a cada push ou PR (pull request — uma proposta de mudança de código que ainda vai ser revisada) para a `main`, o robô builda o projeto e roda os testes.
 
-### Erros comuns / Pegadinhas
+#### Passo 2 — adicionando lint
 
-- Esquecer a indentação correta no YAML: diferente de Kotlin, o YAML usa espaços (não tabs) para definir a hierarquia. Um espaço a mais ou a menos muda o significado do arquivo, ou quebra o workflow.
-- Colocar o arquivo fora da pasta `.github/workflows/`: o GitHub só reconhece workflows dentro exatamente desse caminho.
-
----
-
-## 3. Exemplo de Workflow Completo
-
-### O que é
-
-Um workflow mais completo combina várias verificações em um único pipeline: build, testes e **lint** (uma ferramenta que analisa o código em busca de problemas comuns — como variáveis não usadas, práticas desaconselhadas, possíveis bugs — sem precisar executar o app).
-
-### Exemplo comentado
+**Lint** é uma ferramenta que analisa o código em busca de problemas comuns (variáveis não usadas, práticas desaconselhadas, possíveis bugs) sem precisar executar o app. É rápido e pega erros antes mesmo do build:
 
 ```yaml
-# Workflow completo: build + testes + lint
-name: Android CI Completo
+      - name: Executar Lint
+        run: ./gradlew lint # analisa o código em busca de problemas comuns
+```
 
-on:
-  push:
-    branches: [ main, develop ] # dispara nas branches principais
-  pull_request:
-    branches: [ main ]
+Adicione esse passo logo depois do `setup-java`, antes do build.
 
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30 # limite de tempo para evitar builds travados (o job é cancelado se passar disso)
+#### Passo 3 — acelerando com cache
 
-    steps:
-      # Baixar o código-fonte
-      - uses: actions/checkout@v4
+Cada execução do workflow começa numa máquina virtual "zerada", sem as dependências do Gradle já baixadas — o que pode levar minutos toda vez. O **cache** guarda essas dependências entre uma execução e outra:
 
-      # Configurar o JDK
-      - name: Configurar JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      # Cachear dependências do Gradle para acelerar builds futuros
+```yaml
       - name: Cache do Gradle
         uses: actions/cache@v4
         with:
@@ -148,90 +123,27 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      # Dar permissão de execução ao Gradle Wrapper (necessário em ambientes Linux/macOS)
       - name: Permissão do Gradle Wrapper
-        run: chmod +x ./gradlew
-
-      # Verificar problemas de código com o Lint
-      - name: Executar Lint
-        run: ./gradlew lint # analisa o código em busca de problemas comuns
-
-      # Compilar o projeto em modo debug
-      - name: Build Debug
-        run: ./gradlew assembleDebug # gera o APK de debug
-
-      # Executar todos os testes unitários
-      - name: Testes Unitários
-        run: ./gradlew test # roda testes da pasta test/
-
-      # Fazer upload do relatório de testes como artefato do workflow
-      - name: Upload do Relatório de Testes
-        if: always() # executa mesmo se o passo anterior falhar, para você ver o relatório do erro
-        uses: actions/upload-artifact@v4
-        with:
-          name: relatorio-testes # nome do artefato no GitHub
-          path: app/build/reports/tests/ # caminho dos relatórios gerados
+        run: chmod +x ./gradlew # necessário em ambientes Linux/macOS
 ```
 
-Salve este arquivo como `.github/workflows/android-ci.yml` no seu repositório.
+Adicione logo depois do `checkout`, antes de qualquer comando `./gradlew`.
 
-**O que é cache, na prática?** Cada vez que o Gradle roda pela primeira vez em uma máquina virtual nova (o que acontece a cada execução do workflow, já que ela é descartada depois), ele baixa todas as dependências do projeto de novo — o que pode levar minutos. O **cache** (`actions/cache`) guarda essas dependências já baixadas entre uma execução e outra, para que o próximo workflow não precise baixar tudo de novo, economizando tempo.
-
-### Erros comuns / Pegadinhas
-
-- Esquecer o `chmod +x ./gradlew`: em máquinas Linux (como o `ubuntu-latest` usado nos exemplos), o Gradle Wrapper pode não ter permissão de execução por padrão, e o workflow falha com um erro de "permission denied".
-- Definir uma chave de cache (`key:`) genérica demais: se ela nunca mudar, o cache pode ficar desatualizado e esconder problemas reais de dependências.
-
----
-
-## 4. Gerando o AAB Automaticamente
-
-### O que é
-
-Além de build e testes, o pipeline também pode gerar o **AAB assinado** (visto no [Módulo 4.02](./02_publicacao.md)) automaticamente. Para isso, a keystore e as senhas precisam estar disponíveis dentro do pipeline — mas nunca escritas diretamente no arquivo YAML, porque esse arquivo fica no repositório, visível para qualquer pessoa com acesso a ele.
-
-A solução é usar **secrets**: um cofre de variáveis do próprio GitHub, onde você guarda informações sensíveis (senhas, chaves) de forma criptografada. O valor de um secret nunca aparece nos logs do workflow, mesmo que alguém tente imprimi-lo por engano.
-
-### Por que isso importa
-
-Se a keystore ou as senhas fossem colocadas diretamente no arquivo do workflow (ou commitadas no repositório), qualquer pessoa com acesso de leitura ao código poderia assinar uma versão falsa do seu app usando sua identidade. Secrets resolvem exatamente esse risco.
-
-### Configurando os secrets
-
-No GitHub, acesse **Settings → Secrets and variables → Actions** e adicione:
-
-| Secret | Descrição |
-|--------|-----------|
-| `KEYSTORE_BASE64` | Conteúdo da keystore codificado em Base64 |
-| `KEYSTORE_PASSWORD` | Senha da keystore |
-| `KEY_ALIAS` | Alias da chave de assinatura |
-| `KEY_PASSWORD` | Senha da chave |
-
-**Por que Base64?** A keystore é um arquivo binário (não é texto simples), e o GitHub Secrets espera um valor em formato de texto. **Base64** é uma forma padrão de converter dados binários em texto, para que possam ser armazenados e transportados como se fossem uma string comum. No pipeline, o processo é revertido (decodificado) para recuperar o arquivo binário original.
-
-Para codificar a keystore em Base64:
-
-```bash
-# Codificar a keystore para armazenar como secret no GitHub
-base64 -w 0 minha-keystore.jks > keystore_base64.txt
-```
-
-O comando lê o arquivo `minha-keystore.jks`, converte para texto Base64 (`-w 0` evita quebras de linha no resultado) e salva o texto em `keystore_base64.txt`. É o conteúdo desse arquivo `.txt` que você cola no secret `KEYSTORE_BASE64`.
-
-### Exemplo comentado: workflow de release
+#### Juntando os três passos
 
 ```yaml
-# Workflow para gerar o AAB assinado
-name: Android Release
+name: Android CI
 
 on:
   push:
-    tags:
-      - 'v*' # dispara quando uma tag de versão é criada (ex: v1.0.0)
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  release:
+  build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30 # cancela o job se ele travar
 
     steps:
       - uses: actions/checkout@v4
@@ -242,52 +154,88 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # Decodificar a keystore a partir do secret (reverte o Base64 de volta para o arquivo binário)
-      - name: Decodificar Keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore.jks
+      - name: Cache do Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
-      # Gerar o AAB assinado usando variáveis de ambiente vindas dos secrets
-      - name: Gerar AAB assinado
-        run: ./gradlew bundleRelease # gera o AAB de release
-        env:
-          KEYSTORE_FILE: app/keystore.jks # caminho da keystore decodificada
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      - name: Permissão do Gradle Wrapper
+        run: chmod +x ./gradlew
 
-      # Fazer upload do AAB como artefato do workflow, disponível para download depois
-      - name: Upload do AAB
+      - name: Executar Lint
+        run: ./gradlew lint
+
+      - name: Build Debug
+        run: ./gradlew assembleDebug
+
+      - name: Testes Unitários
+        run: ./gradlew test
+
+      # Guarda o relatório de testes como artefato do workflow, mesmo se algum teste falhar
+      - name: Upload do Relatório de Testes
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-release # nome do artefato
-          path: app/build/outputs/bundle/release/*.aab # caminho do AAB gerado
+          name: relatorio-testes
+          path: app/build/reports/tests/
 ```
 
-Repare que `${{ secrets.KEYSTORE_BASE64 }}` é a sintaxe do GitHub Actions para "ler o valor de um secret" — essa sintaxe com chaves duplas é chamada de *expression* e é usada em vários lugares do YAML para inserir valores dinâmicos.
-
-Uma **tag** de versão (`v1.0.0`, por exemplo) é um marcador fixo em um ponto específico do histórico do Git, usado convencionalmente para identificar releases. O workflow acima só roda quando uma tag começando com `v` é criada — assim, gerar um AAB de release é uma ação deliberada (criar a tag), não algo que acontece a cada push comum.
-
-> **Importante**: nunca faça commit da keystore ou das senhas diretamente no repositório. Use sempre secrets.
+Salve como `.github/workflows/android-ci.yml`. Esse é o pipeline padrão que a maioria dos times Android usa no dia a dia: lint + testes + build a cada push/PR.
 
 ### Erros comuns / Pegadinhas
 
-- Colar a keystore em Base64 diretamente no YAML em vez de em um secret: isso derrota completamente o propósito de segurança, já que o YAML fica visível no histórico do repositório.
-- Esquecer que o `KEYSTORE_FILE` e as outras variáveis de ambiente (`env:`) precisam corresponder ao que o `build.gradle.kts` espera ler (por exemplo, via `System.getenv(...)`, como visto no Módulo 4.02).
-- Deixar o arquivo `app/keystore.jks` gerado durante o workflow sem removê-lo depois: como a máquina virtual é descartada ao fim de cada execução, isso normalmente não é um risco, mas evite copiar esse arquivo para um artefato de upload por engano.
+- Esquecer a indentação correta no YAML: diferente de Kotlin, o YAML usa espaços (não tabs) para definir a hierarquia. Um espaço a mais ou a menos muda o significado do arquivo, ou quebra o workflow.
+- Colocar o arquivo fora da pasta `.github/workflows/`: o GitHub só reconhece workflows dentro exatamente desse caminho.
+- Esquecer o `chmod +x ./gradlew`: em máquinas Linux (como o `ubuntu-latest`), o Gradle Wrapper pode não ter permissão de execução por padrão, e o workflow falha com "permission denied".
+- Definir uma chave de cache (`key:`) genérica demais: se ela nunca mudar, o cache pode ficar desatualizado e esconder problemas reais de dependências.
 
 ---
 
-## 5. Boas Práticas
+## 3. Gerando um Build Assinado no CI (visão geral)
+
+### O que é
+
+Além de build e testes, o pipeline também pode gerar o **AAB assinado** (visto no [Módulo 4.02](./02_publicacao.md)) automaticamente. Para isso, a keystore e as senhas precisam estar disponíveis dentro do pipeline — mas nunca escritas diretamente no arquivo YAML, porque esse arquivo fica no repositório, visível para qualquer pessoa com acesso a ele.
+
+A solução é usar **secrets**: um cofre de variáveis do próprio GitHub (**Settings → Secrets and variables → Actions**), onde você guarda informações sensíveis de forma criptografada. O valor de um secret nunca aparece nos logs do workflow, mesmo que alguém tente imprimi-lo por engano. Um passo de build assinado, usando secrets já cadastrados, é só mais um `step` com variáveis de ambiente:
+
+```yaml
+      - name: Gerar AAB assinado
+        run: ./gradlew bundleRelease
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+```
+
+`${{ secrets.KEYSTORE_PASSWORD }}` é a sintaxe do GitHub Actions para "ler o valor de um secret" dentro do YAML.
+
+### Por que isso importa
+
+Se a keystore ou as senhas fossem coladas diretamente no arquivo do workflow, qualquer pessoa com acesso de leitura ao código poderia assinar uma versão falsa do app usando sua identidade. Secrets resolvem exatamente esse risco.
+
+> Este é só o essencial para você reconhecer o padrão. Um pipeline de release completo — keystore inteira codificada em Base64, workflow disparado por tag de versão (`v1.0.0`), upload automático para a Play Store — é comum em times que já têm CI consolidado no dia a dia, mas foge do escopo essencial deste curso. Vale se aprofundar na documentação de secrets do GitHub Actions quando essa necessidade aparecer no seu time.
+
+### Erros comuns / Pegadinhas
+
+- Colar valores sensíveis (senha, keystore) diretamente no YAML em vez de em um secret: isso derrota completamente o propósito de segurança, já que o YAML fica visível no histórico do repositório.
+- Nome da variável de ambiente (`env:`) não bater com o que o `build.gradle.kts` espera ler (via `System.getenv(...)`, como visto no Módulo 4.02).
+
+---
+
+## 4. Boas Práticas
 
 ### Cache de dependências Gradle
 
-Usar `actions/cache` (como no exemplo da Seção 3) evita baixar as mesmas dependências em toda execução, reduzindo o tempo do pipeline significativamente — em projetos grandes, a diferença pode ser de vários minutos por execução.
+Usar `actions/cache` (como no Passo 3 da Seção 2) evita baixar as mesmas dependências em toda execução, reduzindo o tempo do pipeline significativamente — em projetos grandes, a diferença pode ser de vários minutos por execução.
 
-### Secrets para keystore
+### Secrets para credenciais
 
-- Armazene a keystore codificada em Base64 como secret do repositório.
-- Nunca versione arquivos `.jks` ou `.keystore` — adicione-os ao `.gitignore`.
-- Rotacione (troque periodicamente) as senhas, especialmente se alguém que tinha acesso a elas sair da equipe.
+Nunca versione arquivos `.jks`/`.keystore` (adicione-os ao `.gitignore`) e mantenha senhas apenas em secrets do GitHub. Rotacione (troque periodicamente) as senhas, especialmente se alguém que tinha acesso a elas sair da equipe.
 
 ### Branch Protection Rules
 

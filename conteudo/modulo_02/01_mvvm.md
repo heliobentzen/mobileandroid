@@ -127,7 +127,11 @@ class TasksRepository {
 
 Se a lógica de "buscar tarefas e decidir se deu certo ou erro" ficasse dentro do Composable, ela seria refeita a cada recomposição e perdida a cada rotação de tela. O ViewModel resolve isso: ele guarda o estado atual e só busca os dados novamente quando você mandar explicitamente (`loadTasks()`).
 
-### Exemplo comentado
+### Construindo o ViewModel passo a passo
+
+Em vez de olhar para a versão final de uma vez, vamos construir o `TasksViewModel` em duas etapas: primeiro o essencial (expor o estado e buscar os dados), depois o que falta para lidar com falhas de verdade.
+
+#### Passo 1 — a versão mais simples (sem tratar erros)
 
 ```kotlin
 // TasksViewModel.kt
@@ -153,16 +157,33 @@ class TasksViewModel(private val repository: TasksRepository) : ViewModel() {
         // ViewModel. Quando o ViewModel é destruído, qualquer coroutine
         // pendente aqui é cancelada automaticamente — evita vazamento de memória.
         viewModelScope.launch {
-            try {
-                val tasks = repository.fetchTasks()   // chamada suspend — não trava a UI
-                _uiState.value = UiState.Success(tasks) // atualiza o estado -> View recompõe
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Erro desconhecido")
-            }
+            val tasks = repository.fetchTasks()     // chamada suspend — não trava a UI
+            _uiState.value = UiState.Success(tasks)  // atualiza o estado -> View recompõe
         }
     }
 }
 ```
+
+Essa versão já resolve o problema principal: o estado sobrevive à rotação de tela e a View só reage ao que o ViewModel publica. Mas ela tem uma limitação séria — lembra que `TasksRepository.fetchTasks()` pode lançar uma exceção (falha de "servidor")? Como nada aqui captura essa exceção, uma falha de rede derruba a coroutine sem aviso, e a tela nunca sai do estado `Loading` (ou, dependendo do caso, o app pode até fechar sozinho). O caso de `UiState.Error` que definimos nunca chega a ser usado.
+
+#### Passo 2 — adicionando tratamento de erro (versão final)
+
+A mudança é pequena: envolver a chamada em `try/catch` e, em caso de falha, publicar `UiState.Error` em vez de deixar a exceção escapar.
+
+```kotlin
+fun loadTasks() {
+    viewModelScope.launch {
+        try {
+            val tasks = repository.fetchTasks()
+            _uiState.value = UiState.Success(tasks)
+        } catch (e: Exception) {
+            _uiState.value = UiState.Error(e.message ?: "Erro desconhecido")
+        }
+    }
+}
+```
+
+Agora os três estados de `UiState` (`Loading`, `Success`, `Error`) são realmente alcançáveis, e uma falha de rede vira uma tela de erro amigável em vez de travar o app.
 
 ### Erros comuns / Pegadinhas
 
@@ -176,18 +197,15 @@ class TasksViewModel(private val repository: TasksRepository) : ViewModel() {
 
 A View no MVVM é responsável apenas por **observar** o estado e **renderizar** a UI. Ela não contém lógica de negócio. O `collectAsState()` converte o `StateFlow` do ViewModel em um estado observável pelo Compose, disparando **recomposição** — o processo pelo qual o Compose redesenha (executa novamente) uma função `@Composable` quando algum dado que ela lê muda — sempre que o valor mudar.
 
+#### Passo 1 — conectar o estado à UI com `when`
+
+Esta função concentra a parte que é específica de MVVM: coletar o `StateFlow` e decidir o que desenhar para cada estado possível. O resto (as telas de cada estado) é Compose "comum", sem nada de específico do padrão.
+
 ```kotlin
 // TasksScreen.kt
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
@@ -207,6 +225,20 @@ fun TasksScreen(viewModel: TasksViewModel = viewModel()) {
         )
     }
 }
+```
+
+#### Passo 2 — as telas para cada estado
+
+Agora só falta desenhar cada uma das três telas que `TasksScreen` já sabe escolher.
+
+```kotlin
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
 // Exibe um indicador de carregamento centralizado na tela
 @Composable

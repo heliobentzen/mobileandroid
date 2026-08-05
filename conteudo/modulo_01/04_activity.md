@@ -79,7 +79,9 @@ Em Compose, boa parte da lógica de estado é movida para o `ViewModel`, justame
 
 ### Exemplo 1: Ciclo de Vida com Logs
 
-Este exemplo é uma ótima forma de **ver o ciclo de vida acontecendo de verdade**: rode este código, abra o app, gire o celular, pressione o botão Home e volte — e observe no Logcat (o painel de logs do Android Studio) a ordem em que os callbacks são chamados.
+Este exemplo é uma ótima forma de **ver o ciclo de vida acontecendo de verdade**: rode este código, abra o app, gire o celular, pressione o botão Home e volte — e observe no Logcat (o painel de logs do Android Studio) a ordem em que os callbacks são chamados. Vamos montar a classe em três passos, na mesma ordem em que os callbacks acontecem.
+
+#### Passo 1 — só `onCreate`
 
 ```kotlin
 class MainActivity : ComponentActivity() {
@@ -89,7 +91,14 @@ class MainActivity : ComponentActivity() {
         // Log.d registra uma mensagem de nível "debug" com a tag "CicloDeVida",
         // visível no painel Logcat do Android Studio (filtre por essa tag).
     }
+}
+```
 
+Rode o app e observe o Logcat: só aparece `onCreate chamado`, uma única vez. Isso mostra a criação da Activity, mas nada te avisa quando a tela realmente fica visível ou interativa — para isso precisamos de mais callbacks.
+
+#### Passo 2 — chegando ao primeiro plano (`onStart`, `onResume`)
+
+```kotlin
     override fun onStart() {
         super.onStart()
         Log.d("CicloDeVida", "onStart chamado")
@@ -99,7 +108,13 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         Log.d("CicloDeVida", "onResume chamado")
     }
+```
 
+Adicione esses dois métodos dentro da mesma classe. Rode de novo: agora o Logcat mostra `onCreate → onStart → onResume`, em sequência — a Activity foi criada, ficou visível e chegou ao estado totalmente interativo. Mas ainda não sabemos o que acontece quando o usuário *sai* da tela.
+
+#### Passo 3 — saindo de cena (`onPause`, `onStop`, `onDestroy`)
+
+```kotlin
     override fun onPause() {
         super.onPause()
         Log.d("CicloDeVida", "onPause chamado")
@@ -114,8 +129,9 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         Log.d("CicloDeVida", "onDestroy chamado")
     }
-}
 ```
+
+Com a classe completa (os seis callbacks), gire o celular ou pressione Home e volte: agora dá para ver no Logcat exatamente a sequência descrita no diagrama da seção 3 — incluindo `onPause`/`onStop` ao sair e `onRestart`/`onStart`/`onResume` ao voltar.
 
 > **Dica prática:** sempre chame `super.onX()` como a **primeira linha** de cada callback sobrescrito (exceto em alguns poucos casos documentados na API). Esquecer isso pode causar comportamento inesperado ou até crash, porque a classe-mãe (`ComponentActivity`) também precisa executar sua própria lógica interna nesse momento.
 

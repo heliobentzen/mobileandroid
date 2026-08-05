@@ -66,7 +66,9 @@ O Google Play exige que todo app seja assinado digitalmente. Há dois cenários:
 
 ### Opção A: Assinatura Local (Keystore)
 
-1. **Gerar a keystore** (uma única vez, guarde o arquivo gerado com cuidado):
+#### Passo 1 — gerar a keystore
+
+Gere o arquivo uma única vez e guarde-o com cuidado (perder essa keystore sem backup significa não conseguir mais publicar atualizações do app — veja "Erros comuns" acima):
 
 ```bash
 keytool -genkeypair \
@@ -76,38 +78,36 @@ keytool -genkeypair \
   -keystore meu-app-release.jks
 ```
 
-O comando acima usa o `keytool` (ferramenta que já vem com o JDK) para gerar um par de chaves criptográficas (`RSA`, tamanho `2048` bits) válidas por `10000` dias, guardadas no arquivo `meu-app-release.jks`. O `-alias` é o "apelido" dessa chave dentro do arquivo — um keystore pode guardar mais de uma chave.
+O comando usa o `keytool` (ferramenta que já vem com o JDK) para gerar um par de chaves criptográficas (`RSA`, `2048` bits) válidas por `10000` dias, guardadas em `meu-app-release.jks`. O `-alias` é o "apelido" dessa chave — um keystore pode guardar mais de uma.
 
-2. **Configurar no `build.gradle.kts`**:
+#### Passo 2 — a versão mais simples de configuração
+
+O jeito mais direto de ligar a keystore ao build é apontar direto para o arquivo no `build.gradle.kts`, lendo a senha de uma variável de ambiente:
 
 ```kotlin
 android {
     signingConfigs {
         create("release") {
-            storeFile = file("meu-app-release.jks") // caminho do arquivo da keystore
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "" // senha do arquivo keystore
-            keyAlias = "meu-app" // apelido da chave dentro do keystore
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "" // senha específica da chave
+            storeFile = file("meu-app-release.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+            keyAlias = "meu-app"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
         }
     }
     buildTypes {
         getByName("release") {
             isMinifyEnabled = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-            signingConfig = signingConfigs.getByName("release") // aplica a assinatura ao build de release
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
 ```
 
-> **Importante**: nunca commite senhas diretamente no código. Use variáveis de ambiente ou um arquivo `local.properties` (listado no `.gitignore`, o arquivo que diz ao Git quais arquivos ignorar e nunca versionar).
+**Limitação**: essa abordagem funciona bem em CI (onde as variáveis de ambiente já existem), mas é incômoda no dia a dia local — cada desenvolvedor precisaria exportar `KEYSTORE_PASSWORD` e `KEY_PASSWORD` na própria máquina toda vez que abrir um terminal novo, e é fácil esquecer.
 
-#### Padrão seguro com `keystore.properties`
+#### Passo 3 — o padrão de mercado: `keystore.properties`
 
-Na prática, a forma mais comum de proteger as credenciais em projetos Android é criar um arquivo `keystore.properties` na raiz do projeto (ao lado do `build.gradle.kts` do módulo raiz):
+Na prática, a forma mais comum de guardar essas credenciais em projetos Android é um arquivo `keystore.properties` na raiz do projeto, que cada desenvolvedor cria localmente e que nunca é commitado:
 
 ```properties
 # keystore.properties — NÃO commitar este arquivo!
@@ -117,24 +117,21 @@ keyAlias=meu-app
 keyPassword=minhaSenhaDeChave
 ```
 
-Em seguida, adicione a entrada no `.gitignore` para garantir que o arquivo nunca seja versionado:
+Adicione a entrada no `.gitignore`:
 
 ```gitignore
 # Credenciais da keystore
 keystore.properties
 ```
 
-Por fim, leia o arquivo no `build.gradle.kts` usando a classe `Properties` (parte padrão do Kotlin/Java para ler arquivos `.properties`):
+E leia o arquivo no `build.gradle.kts` com a classe `Properties` (padrão do Kotlin/Java):
 
 ```kotlin
 import java.util.Properties
 
-// Localiza o arquivo keystore.properties na raiz do projeto
-val keystorePropertiesFile = rootProject.file("keystore.properties")
-val keystoreProperties = Properties()
-// Só carrega o arquivo se ele existir (evita erro em máquinas sem o arquivo configurado)
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(keystorePropertiesFile.inputStream())
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) load(file.inputStream())
 }
 
 android {
@@ -146,10 +143,20 @@ android {
             keyPassword = keystoreProperties.getProperty("keyPassword")
         }
     }
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
 }
 ```
 
-Dessa forma, cada desenvolvedor cria seu próprio `keystore.properties` localmente, e o repositório permanece livre de credenciais.
+Assim, o repositório permanece livre de credenciais e cada máquina (local ou CI) resolve suas próprias senhas.
 
 ### Opção B: Play App Signing (Recomendado)
 
@@ -163,6 +170,8 @@ O Google gerencia a chave de assinatura de produção. O fluxo funciona assim:
 **Benefício prático**: se você perder a sua chave de upload (por exemplo, um HD corrompido), o Google pode gerar uma nova chave de upload para você — sem isso, você perderia o app e teria que publicá-lo como um app completamente novo. Com o Play App Signing, a chave de produção fica segura nos servidores do Google e nunca é exposta.
 
 Para ativar, basta marcar a opção **"Permitir que o Google gerencie e proteja sua chave de assinatura do app"** ao criar a primeira release no Play Console. Essa é a opção recomendada para praticamente todos os projetos novos, justamente por reduzir o risco de perda irreversível da chave.
+
+> Este módulo cobre o fluxo padrão de assinatura e publicação. Cenários mais avançados — múltiplos flavors de produção, políticas de compliance detalhadas por região, ou nuances de rotação de chave de upload no Play App Signing — existem para quando o projeto crescer, mas fogem do essencial para publicar seu primeiro app.
 
 ---
 

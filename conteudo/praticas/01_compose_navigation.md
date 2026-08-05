@@ -41,36 +41,26 @@ Sincronize o projeto com os arquivos Gradle clicando no botão `Sync Now` que ap
 
 ## 3. Criando as Telas (Composables)
 
-Vamos criar duas funções Componíveis que representarão nossas telas: `ScreenA` e `ScreenB`.
+Vamos criar duas funções Componíveis que representarão nossas telas: `ScreenA` e `ScreenB`. Em vez de escrever as duas de uma vez, vamos primeiro deixar a navegação simples (sem passar dados) funcionando, e só depois adicionar a mensagem.
 
-Abra o arquivo `MainActivity.kt` e adicione as seguintes funções Componíveis fora da função `onCreate` e da classe `MainActivity` (ou em um novo arquivo Kotlin, se preferir):
+### 3.1. Crie a Tela A
+
+Abra o arquivo `MainActivity.kt` e adicione o seguinte composable fora da função `onCreate` e da classe `MainActivity` (ou em um novo arquivo Kotlin, se preferir):
 
 ```kotlin
 package com.example.composenavigationapp
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import com.example.composenavigationapp.ui.theme.ComposeNavigationAppTheme
-
-// ... (código existente da MainActivity)
 
 // ScreenA recebe o NavController como parâmetro para poder "pedir" a navegação.
 // A tela em si não sabe COMO a navegação acontece, só chama os métodos do controller.
@@ -89,8 +79,13 @@ fun ScreenA(navController: NavController) {
         }
     }
 }
+```
 
-// message é opcional (String?) porque a Tela B pode ser aberta com ou sem uma mensagem vinda da Tela A.
+### 3.2. Crie a Tela B
+
+Agora crie a `ScreenB`. Ela recebe um `message` opcional (`String?`), porque nesta primeira versão ela pode ser aberta sem nenhuma mensagem vinda da Tela A — isso só vai fazer sentido de verdade quando configurarmos a navegação com argumento na seção 5.
+
+```kotlin
 @Composable
 fun ScreenB(navController: NavController, message: String?) {
     Column(
@@ -107,23 +102,6 @@ fun ScreenB(navController: NavController, message: String?) {
         }
     }
 }
-
-// Pré-visualizações (opcional)
-@Preview(showBackground = true)
-@Composable
-fun ScreenAPreview() {
-    ComposeNavigationAppTheme {
-        ScreenA(rememberNavController())
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ScreenBPreview() {
-    ComposeNavigationAppTheme {
-        ScreenB(rememberNavController(), "Olá da Tela A")
-    }
-}
 ```
 
 **Explicação:**
@@ -131,7 +109,9 @@ fun ScreenBPreview() {
 *   Ambas as telas recebem um `NavController` como parâmetro, que é essencial para a navegação.
 *   `ScreenA` tem um botão que, ao ser clicado, chama `navController.navigate("screen_b")` para ir para a `ScreenB`.
 *   `ScreenB` tem um botão que usa `navController.popBackStack()` para voltar para a tela anterior (neste caso, `ScreenA`).
-*   `ScreenB` também demonstra como receber um argumento (`message`) da tela anterior.
+*   `ScreenB` também demonstra como receber um argumento (`message`) da tela anterior — mas essa mensagem só chega de verdade depois que configurarmos o `NavHost` (próxima seção).
+
+*Se quiser conferir o resultado de cada tela isoladamente sem rodar o app inteiro, adicione um `@Preview` para cada uma, como visto no guia `03_jetpack_compose_basico.md`.*
 
 ## 4. Configurando a Navegação Principal
 

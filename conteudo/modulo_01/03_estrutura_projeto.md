@@ -175,7 +175,7 @@ android {
 
 **Use Flavors apenas quando houver diferença real** no comportamento ou conteúdo do app (ex: URL de API diferente, funcionalidades habilitadas/desabilitadas). Se o app é único, não crie flavors — eles adicionam complexidade desnecessária.
 
-Exemplo mínimo com ambos:
+#### Passo 1 — declarando os flavors
 
 ```kotlin
 android {
@@ -188,6 +188,16 @@ android {
         // "com.exemplo.app.free" — permite instalar free e pro no mesmo device.
         create("pro")  { dimension = "tier" }
     }
+}
+```
+
+Isso já gera duas variantes: `freeDebug` e `proDebug` (o `debug` é o build type padrão). Mas ainda não configuramos como o app se comporta ao ser publicado.
+
+#### Passo 2 — combinando com os build types
+
+```kotlin
+android {
+    // ...flavors do passo 1 continuam aqui...
     buildTypes {
         getByName("debug") { isMinifyEnabled = false }
         getByName("release") { isMinifyEnabled = true }
@@ -195,7 +205,7 @@ android {
 }
 ```
 
-Isso gera 4 variantes, uma para cada combinação de flavor × build type: `freeDebug`, `freeRelease`, `proDebug` e `proRelease`. Evite criar muitas variantes no início — cada combinação pode precisar de diretórios próprios de código-fonte (`src/freeDebug/`), o que complica o projeto rapidamente.
+Agora o Gradle combina os dois eixos (flavor × build type) e gera 4 variantes: `freeDebug`, `freeRelease`, `proDebug` e `proRelease`. Evite criar muitas variantes no início — cada combinação pode precisar de diretórios próprios de código-fonte (`src/freeDebug/`), o que complica o projeto rapidamente.
 
 ### Erros comuns / Pegadinhas
 
