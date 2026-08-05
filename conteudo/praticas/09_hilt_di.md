@@ -375,7 +375,9 @@ Este exercício junta tudo que você viu nos guias anteriores — Retrofit, Room
 
 ### Passo a Passo
 
-**1. Repositório unificado** (`TarefaRepository.kt`):
+Vamos montar as camadas de baixo para cima, sempre com uma versão pequena funcionando antes de somar a próxima peça.
+
+**1. Repositório — comece só lendo o banco local** (`TarefaRepository.kt`):
 
 ```kotlin
 import kotlinx.coroutines.flow.Flow
@@ -388,7 +390,14 @@ class TarefaRepository @Inject constructor(
 ) {
     // Observa as tarefas do banco local (reativo com Flow)
     fun observarTarefas(): Flow<List<TarefaEntity>> = dao.observarTodas()
+}
+```
 
+Com isso, o repositório já consegue expor as tarefas salvas — mas o banco começa vazio, porque ainda não sincronizamos com a API.
+
+**2. Repositório — adicione sincronizar e alternar conclusão:**
+
+```kotlin
     // Busca tarefas da API e salva no banco local
     suspend fun sincronizar() {
         val remotas = api.buscarTarefas()
@@ -407,10 +416,9 @@ class TarefaRepository @Inject constructor(
     suspend fun alternarConclusao(tarefa: TarefaEntity) {
         dao.atualizar(tarefa.copy(concluida = !tarefa.concluida))
     }
-}
 ```
 
-**2. Estado da UI** (`TarefaUiState.kt`):
+**3. Estado da UI** (`TarefaUiState.kt`):
 
 ```kotlin
 // Representa os possíveis estados da tela de tarefas
@@ -421,7 +429,7 @@ sealed interface TarefaUiState {
 }
 ```
 
-**3. ViewModel completo** (`TarefaViewModel.kt`):
+**4. ViewModel — comece só observando e alternando conclusão** (`TarefaViewModel.kt`):
 
 ```kotlin
 import androidx.lifecycle.ViewModel
@@ -453,6 +461,20 @@ class TarefaViewModel @Inject constructor(
             initialValue = TarefaUiState.Carregando
         )
 
+    // Marca ou desmarca uma tarefa como concluída
+    fun alternarConclusao(tarefa: TarefaEntity) {
+        viewModelScope.launch {
+            repository.alternarConclusao(tarefa)
+        }
+    }
+}
+```
+
+Nesse ponto o ViewModel já expõe `uiState` reativo, mas a lista sempre chega vazia, já que nada popula o banco ainda.
+
+**5. ViewModel — adicione a sincronização com a API:**
+
+```kotlin
     init {
         // Sincroniza com a API ao iniciar o ViewModel
         sincronizar()
@@ -468,17 +490,11 @@ class TarefaViewModel @Inject constructor(
             }
         }
     }
-
-    // Marca ou desmarca uma tarefa como concluída
-    fun alternarConclusao(tarefa: TarefaEntity) {
-        viewModelScope.launch {
-            repository.alternarConclusao(tarefa)
-        }
-    }
-}
 ```
 
-**4. Tela Compose completa** (`TarefaScreen.kt`):
+**6. Tela — comece só exibindo a lista** (`TarefaScreen.kt`):
+
+Trate primeiro os dois estados mais simples, `Carregando` e `Sucesso`, para ver a lista na tela:
 
 ```kotlin
 import androidx.compose.foundation.layout.*
@@ -502,64 +518,28 @@ fun TarefaScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("📋 Minhas Tarefas") })
-        },
-        // Botão flutuante para sincronizar com a API
-        floatingActionButton = {
-            FloatingActionButton(onClick = { viewModel.sincronizar() }) {
-                Text("🔄")
-            }
-        }
+        topBar = { TopAppBar(title = { Text("📋 Minhas Tarefas") }) }
     ) { padding ->
-        Box(
-            modifier = Modifier.fillMaxSize().padding(padding)
-        ) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (val state = uiState) {
                 is TarefaUiState.Carregando -> {
-                    // Indicador de carregamento centralizado
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
 
                 is TarefaUiState.Erro -> {
-                    // Mensagem de erro com botão para tentar novamente
-                    Column(
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "❌ ${state.mensagem}",
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = { viewModel.sincronizar() }) {
-                            Text("Tentar novamente")
-                        }
-                    }
+                    // Tratado no próximo passo
                 }
 
                 is TarefaUiState.Sucesso -> {
-                    if (state.tarefas.isEmpty()) {
-                        // Mensagem quando não há tarefas
-                        Text(
-                            text = "Nenhuma tarefa encontrada.\nToque em 🔄 para sincronizar.",
-                            modifier = Modifier.align(Alignment.Center),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    } else {
-                        // Lista de tarefas com LazyColumn
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(state.tarefas, key = { it.id }) { tarefa ->
-                                TarefaItem(
-                                    tarefa = tarefa,
-                                    onAlternar = { viewModel.alternarConclusao(tarefa) }
-                                )
-                            }
+                    LazyColumn(
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(state.tarefas, key = { it.id }) { tarefa ->
+                            TarefaItem(
+                                tarefa = tarefa,
+                                onAlternar = { viewModel.alternarConclusao(tarefa) }
+                            )
                         }
                     }
                 }
@@ -594,6 +574,67 @@ fun TarefaItem(
                     TextDecoration.None
                 }
             )
+        }
+    }
+}
+```
+
+**7. Tela — trate o erro e adicione um botão de sincronizar manualmente:**
+
+Substitua o comentário `// Tratado no próximo passo` pelo tratamento real de erro, e adicione um FAB para chamar `sincronizar()` sob demanda:
+
+```kotlin
+Scaffold(
+    topBar = { TopAppBar(title = { Text("📋 Minhas Tarefas") }) },
+    // Botão flutuante para sincronizar com a API
+    floatingActionButton = {
+        FloatingActionButton(onClick = { viewModel.sincronizar() }) {
+            Text("🔄")
+        }
+    }
+) { padding ->
+    Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        when (val state = uiState) {
+            is TarefaUiState.Carregando -> {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+
+            is TarefaUiState.Erro -> {
+                // Mensagem de erro com botão para tentar novamente
+                Column(
+                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(text = "❌ ${state.mensagem}", color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { viewModel.sincronizar() }) {
+                        Text("Tentar novamente")
+                    }
+                }
+            }
+
+            is TarefaUiState.Sucesso -> {
+                if (state.tarefas.isEmpty()) {
+                    // Mensagem quando não há tarefas
+                    Text(
+                        text = "Nenhuma tarefa encontrada.\nToque em 🔄 para sincronizar.",
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(state.tarefas, key = { it.id }) { tarefa ->
+                            TarefaItem(
+                                tarefa = tarefa,
+                                onAlternar = { viewModel.alternarConclusao(tarefa) }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

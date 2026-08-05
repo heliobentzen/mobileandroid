@@ -55,8 +55,9 @@ Entrega parcial: app consumindo API real com cache local em Room.
 | [01 — Testes](conteudo/modulo_04/01_testes.md) | Unitários (MockK/Turbine) e UI (Compose) |
 | [02 — Publicação](conteudo/modulo_04/02_publicacao.md) | AAB assinado, checklist Play Console |
 | [03 — CI/CD](conteudo/modulo_04/03_ci_cd.md) | Pipeline de build, testes e entrega automatizados |
+| [04 — Vibe Coding](conteudo/modulo_04/04_vibe_coding.md) | Desenvolvimento assistido por IA: quando e como usar bem |
 
-Entrega final: app com Compose, ViewModel testado, AAB pronto.
+Entrega final: app com Compose, ViewModel testado, AAB pronto, desenvolvido com apoio consciente de ferramentas de IA (vibe coding).
 
 ## Práticas
 
