@@ -6,6 +6,14 @@ Objetivo: aprofundar o uso de Kotlin Flow em aplicações Android reais — oper
 
 ---
 
+## O que é Flow, rapidamente?
+
+Se você chegou direto neste arquivo sem passar pelo Módulo 2.01, aqui vai o essencial: um **Flow** é um "cano" de valores que chegam ao longo do tempo, um de cada vez, de forma assíncrona. Diferente de uma `List` (que já tem todos os valores prontos), um Flow pode emitir um novo valor daqui a 1 segundo, outro daqui a 5 segundos, e assim por diante — por exemplo, cada vez que uma tabela do Room muda, ou cada vez que o usuário digita uma letra em um campo de busca.
+
+Quem "escuta" um Flow é chamado de **coletor** (você chama `.collect { }` para começar a receber os valores). Um Flow só existe pela metade até alguém coletar — e é exatamente essa distinção entre Flow "frio" (parado até alguém coletar) e "quente" (ativo, compartilhado entre vários coletores) que a seção 3 deste arquivo explica em detalhe.
+
+---
+
 ## 1. Recap: StateFlow vs SharedFlow
 
 Antes de avançar, vale relembrar quando usar cada tipo de Flow quente:
@@ -255,6 +263,18 @@ fun CatalogoScreen(viewModel: CatalogoViewModel) {
 3. Trate erros com `catch` antes de `stateIn`/`shareIn` para evitar crashes.
 4. Não crie Flows dentro de funções Composable — exponha-os do ViewModel.
 5. Use `distinctUntilChanged` para evitar recomposições desnecessárias.
+
+---
+
+## Erros Comuns / Pegadinhas
+
+1. **Chamar `collect` diretamente em vez de `collectAsStateWithLifecycle` no Compose.** `collectAsState` (sem o sufixo `WithLifecycle`) continua coletando o Flow mesmo quando a tela está em segundo plano — isso desperdiça bateria e processamento, e pode até causar crash ao tentar atualizar uma UI que não está mais visível. Prefira sempre `collectAsStateWithLifecycle` em telas Compose.
+
+2. **Colocar `catch` depois de `stateIn`/`shareIn` em vez de antes.** Como vimos na seção 6, `catch` só intercepta erros que aconteceram *antes* dele na cadeia (upstream). Se você aplicar `catch` depois de `stateIn`, ele não vai capturar nada — o erro já derrubou a coroutine que mantém o `StateFlow` ativo. A ordem correta é sempre `catch` antes de `stateIn`/`shareIn`.
+
+3. **Esquecer `distinctUntilChanged` em Flows que alimentam a UI.** Sem esse operador, cada emissão — mesmo que idêntica à anterior — dispara uma recomposição no Compose. Em listas grandes, isso pode gerar lentidão perceptível. `StateFlow` já ignora valores duplicados por padrão, mas Flows intermediários na cadeia (antes do `stateIn`) não têm essa proteção automaticamente.
+
+4. **Criar um novo Flow dentro de um Composable a cada recomposição.** Declarar `flow { ... }` ou qualquer operador de Flow diretamente dentro de uma função `@Composable` cria uma nova instância a cada recomposição, perdendo o estado e desperdiçando trabalho. Sempre exponha o Flow já pronto a partir do ViewModel — o Composable só coleta, nunca constrói.
 
 ---
 

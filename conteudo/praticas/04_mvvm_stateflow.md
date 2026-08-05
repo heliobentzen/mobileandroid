@@ -484,10 +484,17 @@ fun QuoteScreen(viewModel: QuoteViewModel = viewModel()) {
 }
 ```
 
+> **💡 Por trás dos panos**
+> `sealed interface QuoteUiState` garante que o `when (val state = uiState)` na tela **precise** tratar todos os casos possíveis (`Loading`, `Success`, `Error`) — se você esquecer um caso, o compilador avisa. Isso é diferente de usar variáveis booleanas soltas como `isLoading` e `hasError`, onde é fácil deixar combinações inválidas passarem despercebidas (por exemplo, `isLoading = true` e `hasError = true` ao mesmo tempo, o que não faz sentido). Com um estado selado, só existe um estado "verdadeiro" por vez — a tela nunca fica em uma combinação impossível.
+
 ### Exercícios
 
 1. Adicione um estado `Empty` ao `QuoteUiState` para quando o repositório retornar uma lista vazia. Adapte o repositório para simular essa situação.
+   - *Dica se travar*: `Empty` pode ser um `data object`, igual a `Loading` — não precisa carregar nenhum dado extra.
 2. Adicione um botão `"Favoritar"` na tela de sucesso. Mantenha no ViewModel uma lista de frases favoritas e crie uma segunda tela que exibe essa lista.
+   - Primeiro, adicione um `MutableStateFlow<List<Pair<String, String>>>` de favoritos no ViewModel.
+   - Depois, crie a função `favoritar()` que adiciona a frase atual a essa lista.
+   - Por fim, crie um novo composable `FavoritosScreen` que recebe a lista e a exibe em uma `Column` ou `LazyColumn`.
 3. Adicione um contador de "frases buscadas" ao ViewModel e exiba no canto superior da tela.
 
 ---

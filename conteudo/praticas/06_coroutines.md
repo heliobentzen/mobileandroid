@@ -29,6 +29,8 @@ dependencies {
 ### Objetivo
 Entender como uma coroutine funciona e a diferença entre código bloqueante e não bloqueante.
 
+Se seu app trava a tela toda vez que busca dados da internet ou lê um arquivo grande, a experiência do usuário fica ruim — ele nem consegue tocar em outro botão enquanto espera. Coroutines resolvem exatamente esse problema: permitem que seu app espere por uma tarefa demorada sem congelar a interface. Esse é o primeiro passo de um dos assuntos mais usados no Android moderno — praticamente toda chamada de rede, leitura de banco de dados ou operação demorada no Android usa coroutines por baixo dos panos.
+
 ### Passo a Passo
 
 Crie um arquivo Kotlin puro (`Coroutines101.kt`) para testar fora do Android:
@@ -63,11 +65,16 @@ Fim
 
 > **Observe**: `"Continuando..."` aparece antes de `"Coroutine finalizada"` porque `launch` não bloqueia.
 
+> **💡 Por trás dos panos**
+> `delay(2000)` parece uma pausa, mas não é como `Thread.sleep()` — ela não trava a thread onde está rodando. Internamente, a coroutine "libera" a thread para fazer outras coisas e agenda para ser retomada depois de 2 segundos. É esse mecanismo (chamado de suspensão) que permite rodar milhares de coroutines "esperando" ao mesmo tempo, usando pouquíssimas threads reais — coisa que seria inviável com threads tradicionais.
+
 ### Exercícios
 
 1. Adicione uma segunda coroutine que aguarda 1 segundo e imprime uma mensagem diferente. Observe a ordem das mensagens.
+   - *Dica se travar*: use `launch { ... }` de novo, com `delay(1000)` dentro — as duas coroutines rodam de forma independente.
 2. Troque `launch` por `async` e use `.await()` para obter o valor de retorno da coroutine. Dica: `async { 42 }.await()` retorna `42`.
 3. Remova o `tarefa.join()` e execute novamente. O que muda na saída? Por quê?
+   - *Dica se travar*: sem `.join()`, o programa principal (`runBlocking`) pode terminar antes da coroutine, então a mensagem final dela pode nunca aparecer.
 
 ---
 
@@ -75,6 +82,8 @@ Fim
 
 ### Objetivo
 Entender os principais dispatchers e quando usar cada um.
+
+Nem toda tarefa deve rodar no mesmo lugar. Atualizar a tela precisa acontecer na thread principal (Main), mas fazer uma chamada de rede na thread principal trava o app inteiro. Escolher o `Dispatcher` certo para cada tipo de tarefa é uma das decisões mais comuns — e mais importantes — ao trabalhar com coroutines no Android. Usar o dispatcher errado é uma causa frequente de apps que travam ("ANR — App Not Responding") ou que desperdiçam bateria e desempenho.
 
 ### Passo a Passo
 
@@ -108,11 +117,16 @@ fun main() = runBlocking {
 }
 ```
 
+> **💡 Por trás dos panos**
+> `withContext(Dispatchers.IO)` não cria uma coroutine nova — ele muda temporariamente a thread onde o bloco de código roda, e depois retorna automaticamente para o dispatcher de onde veio. `Dispatchers.IO` mantém um conjunto maior de threads reservadas para operações que ficam "esperando" (rede, disco), enquanto `Dispatchers.Default` usa um número de threads baseado nos núcleos do processador, ideal para cálculos pesados de CPU. Escolher o dispatcher errado não trava o código, mas desperdiça recursos: usar `Dispatchers.Default` para uma chamada de rede, por exemplo, ocupa uma thread pensada para processamento enquanto ela só fica esperando a resposta chegar.
+
 ### Exercícios
 
 1. Crie uma função `salvarNoArquivo(conteudo: String)` que use `Dispatchers.IO` e simule uma escrita em arquivo com `delay(800)`.
 2. Crie uma função `calcularPrimos(limite: Int): List<Int>` que use `Dispatchers.Default` para encontrar todos os números primos até o limite informado.
+   - *Dica se travar*: um número é primo se não tiver divisores além de 1 e ele mesmo — teste com um loop simples de `2 until numero`.
 3. Modifique o exemplo para executar `operacaoDeRede()` e `processarDados()` em **paralelo** usando `async/await`. Meça a diferença de tempo total.
+   - *Dica se travar*: use `System.currentTimeMillis()` antes e depois do bloco para medir o tempo, e lembre que `processarDados()` precisa do resultado de `operacaoDeRede()` — pense se elas realmente podem rodar em paralelo neste caso específico.
 
 ---
 
@@ -120,6 +134,8 @@ fun main() = runBlocking {
 
 ### Objetivo
 Usar coroutines no ViewModel para carregar dados sem bloquear a UI.
+
+Esta é a forma como coroutines realmente aparecem no dia a dia de um app Android: dentro de um `ViewModel`, buscando dados e atualizando o estado da tela. Diferente dos exemplos anteriores (que rodavam soltos em um `fun main()`), aqui você vai ver o `viewModelScope`, que amarra a coroutine ao ciclo de vida da tela — se o usuário sair da tela no meio da busca, a coroutine é cancelada automaticamente, evitando desperdício de recursos e crashes.
 
 ### Passo a Passo
 
@@ -269,11 +285,16 @@ fun ClimaScreen(viewModel: ClimaViewModel = viewModel()) {
 }
 ```
 
+> **💡 Por trás dos panos**
+> `viewModelScope` é um escopo de coroutine especial fornecido pelo Android Jetpack, atrelado ao ciclo de vida do `ViewModel`. Quando o `ViewModel` é destruído (por exemplo, quando o usuário sai definitivamente da tela), todas as coroutines lançadas com `viewModelScope.launch { ... }` são canceladas automaticamente — você não precisa lembrar de cancelar manualmente. Isso evita um problema clássico: uma busca de rede que termina *depois* que a tela já não existe mais, tentando atualizar um estado que ninguém está mais observando.
+
 ### Exercícios
 
 1. Adicione um histórico de últimas cidades buscadas. Exiba-as como chips clicáveis abaixo do campo de busca.
+   - *Dica se travar*: adicione um `historico: List<String>` ao lado do `uiState` (ou dentro dele) e atualize-o toda vez que `buscarClima` for chamado com sucesso.
 2. Implemente busca automática: após o usuário parar de digitar por 1 segundo, inicie a busca automaticamente. Dica: pesquise sobre `debounce` com coroutines e `Flow`.
 3. Adicione a funcionalidade de buscar o clima de múltiplas cidades ao mesmo tempo usando `async/await` e exibir todas em uma lista.
+   - *Dica se travar*: dentro de `viewModelScope.launch { }`, crie uma lista de `async { repository.buscarClima(cidade) }` para cada cidade e depois use `.awaitAll()` para esperar todas terminarem juntas.
 
 ---
 
@@ -281,6 +302,8 @@ fun ClimaScreen(viewModel: ClimaViewModel = viewModel()) {
 
 ### Objetivo
 Entender como e quando cancelar coroutines para evitar desperdício de recursos.
+
+Imagine um usuário que inicia o upload de um vídeo e, no meio do processo, decide sair da tela ou cancelar. Se a coroutine continuar rodando escondida, ela consome dados, bateria e processamento à toa — e pode até tentar atualizar uma tela que já não existe mais. Saber cancelar coroutines corretamente é essencial para apps que respeitam os recursos do dispositivo do usuário.
 
 ### Passo a Passo
 
@@ -311,9 +334,13 @@ fun main() = runBlocking {
 }
 ```
 
+> **💡 Por trás dos panos**
+> Cancelamento em coroutines é **cooperativo**: chamar `.cancel()` não interrompe a coroutine à força no meio de qualquer linha — ele apenas sinaliza que ela deve parar assim que tiver a chance. É por isso que o exemplo verifica `isActive` dentro do `repeat`: funções suspensas como `delay` já verificam esse sinal automaticamente, mas se você tiver um loop de cálculo puro (sem `delay` ou outra função suspensa), precisa checar `isActive` você mesmo, ou a coroutine nunca vai perceber que foi cancelada.
+
 ### Exercícios
 
 1. Modifique o exemplo para simular um upload que pode ser cancelado. Adicione tratamento do `CancellationException` para imprimir uma mensagem quando o upload for cancelado.
+   - *Dica se travar*: envolva o corpo da coroutine em `try { ... } catch (e: CancellationException) { println("Upload cancelado") }`.
 2. Crie um ViewModel com uma coroutine de "processamento longo". Adicione um botão na tela para cancelar o processamento. Use `Job` para manter referência da coroutine.
 3. Explique com suas palavras: por que é importante que a coroutine de carregamento seja cancelada quando o usuário sai da tela? Como o `viewModelScope` ajuda com isso?
 
@@ -323,6 +350,8 @@ fun main() = runBlocking {
 
 ### Objetivo
 Usar `Flow` para transmitir uma sequência de valores ao longo do tempo.
+
+Uma função `suspend` normal retorna um único valor (como o resultado de uma chamada de rede). Mas muitas vezes você precisa de uma sequência de valores ao longo do tempo — um cronômetro que atualiza a cada segundo, uma lista do banco de dados que muda quando um item é inserido, uma cotação de moeda que atualiza periodicamente. `Flow` é a ferramenta do Kotlin para esse tipo de dado "vivo", e é a base de `StateFlow`, que você já usou no guia de MVVM.
 
 ### Passo a Passo
 
@@ -377,10 +406,15 @@ class TemporizadorViewModel : ViewModel() {
 }
 ```
 
+> **💡 Por trás dos panos**
+> Um `Flow` só começa a produzir valores quando alguém chama `.collect()` nele — antes disso, ele fica "adormecido". Cada nova chamada de `.collect()` dispara uma nova execução do bloco `flow { ... }` do zero. Já o `StateFlow` (usado no `TemporizadorViewModel`) é diferente: ele sempre guarda o **último valor emitido** e o entrega imediatamente para qualquer novo observador, mesmo que ele comece a observar depois que o valor já foi emitido — por isso é o tipo ideal para representar o estado atual de uma tela.
+
 ### Exercícios
 
 1. Crie um composable `Temporizador` que usa o `TemporizadorViewModel` acima e exibe os segundos formatados como `"00:00"` (minutos:segundos). Adicione botões para Iniciar, Pausar e Resetar.
+   - *Dica se travar*: para formatar, calcule `segundos / 60` (minutos) e `segundos % 60` (segundos restantes), e use `String.format("%02d:%02d", min, seg)`.
 2. Crie um `Flow` que emite o preço de uma ação simulada a cada 2 segundos (número aleatório entre R$10 e R$100). Exiba na tela o preço atual, o máximo e o mínimo já observados.
+   - *Dica se travar*: guarde o máximo e o mínimo como variáveis no ViewModel, atualizando-as toda vez que um novo preço chega via `.collect { ... }`.
 3. Use o operador `map` em um `Flow` para transformar uma lista de números inteiros em uma lista de seus quadrados antes de exibir na tela.
 
 ---

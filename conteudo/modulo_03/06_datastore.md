@@ -321,6 +321,18 @@ val temaEscuroFlow: Flow<Boolean> = context.dataStore.data
 
 ---
 
+## Erros Comuns / Pegadinhas
+
+1. **Criar mais de uma instância de DataStore para o mesmo nome de arquivo.** Se você declarar `preferencesDataStore(name = "configuracoes")` em mais de um lugar (por exemplo, dentro de uma função em vez de como propriedade de extensão no nível do arquivo), o Android lança `IllegalStateException: There are multiple DataStores active for the same file`. A solução é sempre ter uma única declaração `by preferencesDataStore(...)` por nome de arquivo, no nível do arquivo (top-level), como mostrado na seção 2.
+
+2. **Chamar `dataStore.edit { }` fora de uma coroutine.** `edit` é uma função `suspend` — ela só pode ser chamada de dentro de `viewModelScope.launch { }` ou outra coroutine (veja Módulo 3.01). Tentar chamá-la direto de um `onClick`, sem uma coroutine, não compila.
+
+3. **Não tratar `IOException` na leitura do `dataStore.data`.** Se o arquivo de preferências for corrompido (raro, mas possível), a leitura lança uma exceção que, sem tratamento, derruba o app. Sempre use `.catch { }` antes do `.map { }`, como mostrado na seção "Tratamento de erros".
+
+4. **Usar DataStore para guardar listas grandes ou dados estruturados complexos.** DataStore (Preferences) foi feito para configurações simples — um tema, um idioma, um número de tentativas. Para volumes maiores de dados (uma lista de produtos, histórico de pedidos), use o Room (Módulo 3.03), que foi desenhado para consultas e grandes volumes.
+
+---
+
 ## 7. Resumo
 
 | Conceito                    | Para que serve                                         |
