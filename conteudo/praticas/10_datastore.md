@@ -233,7 +233,12 @@ class ConfiguracoesDataStore(private val context: Context) {
         val NOTIFICACOES = booleanPreferencesKey("notificacoes_ativas")
         val IDIOMA = stringPreferencesKey("idioma")
     }
+}
+```
 
+**2. Combine as três chaves em um único `Flow`.** Em vez de expor um `Flow` por preferência (como no Exercício 1), aqui agrupamos tudo em um só `Flow<Configuracoes>`:
+
+```kotlin
     // Flow único que emite o objeto Configuracoes completo
     val configuracoes: Flow<Configuracoes> = context.dataStore.data.map { prefs ->
         Configuracoes(
@@ -242,7 +247,11 @@ class ConfiguracoesDataStore(private val context: Context) {
             idioma = prefs[IDIOMA] ?: "pt-BR"
         )
     }
+```
 
+**3. Adicione as funções que salvam cada preferência:**
+
+```kotlin
     // Salva a preferência de tema escuro
     suspend fun atualizarTemaEscuro(ativado: Boolean) {
         context.dataStore.edit { it[TEMA_ESCURO] = ativado }
@@ -257,17 +266,16 @@ class ConfiguracoesDataStore(private val context: Context) {
     suspend fun atualizarIdioma(idioma: String) {
         context.dataStore.edit { it[IDIOMA] = idioma }
     }
-}
 ```
 
-**2. Tela de configurações com Compose** (`ConfiguracoesScreen.kt`):
+**4. Tela de configurações — comece só com o tema escuro** (`ConfiguracoesScreen.kt`):
+
+Crie primeiro o componente reutilizável `ItemConfiguracao` e use-o para um único item, para confirmar que a coleta do `Flow<Configuracoes>` está funcionando:
 
 ```kotlin
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -296,10 +304,8 @@ fun ConfiguracoesScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Seção: Aparência
             Text("Aparência", style = MaterialTheme.typography.titleSmall)
 
-            // Item de configuração para tema escuro
             ItemConfiguracao(
                 icone = { Icon(Icons.Default.DarkMode, contentDescription = null) },
                 titulo = "Tema Escuro",
@@ -307,35 +313,6 @@ fun ConfiguracoesScreen() {
                 ativado = config.temaEscuro,
                 aoAlterar = { escopo.launch { dataStore.atualizarTemaEscuro(it) } }
             )
-
-            Divider()
-
-            // Seção: Notificações
-            Text("Notificações", style = MaterialTheme.typography.titleSmall)
-
-            // Item de configuração para notificações
-            ItemConfiguracao(
-                icone = { Icon(Icons.Default.Notifications, contentDescription = null) },
-                titulo = "Notificações",
-                descricao = "Receber alertas e avisos do app",
-                ativado = config.notificacoesAtivas,
-                aoAlterar = { escopo.launch { dataStore.atualizarNotificacoes(it) } }
-            )
-
-            Divider()
-
-            // Exibe o idioma atual selecionado
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Language, contentDescription = null)
-                Spacer(Modifier.width(16.dp))
-                Column {
-                    Text("Idioma", style = MaterialTheme.typography.bodyLarge)
-                    Text("Atual: ${config.idioma}", style = MaterialTheme.typography.bodySmall)
-                }
-            }
         }
     }
 }
@@ -363,6 +340,44 @@ fun ItemConfiguracao(
         }
         // Switch que altera e salva a preferência automaticamente
         Switch(checked = ativado, onCheckedChange = aoAlterar)
+    }
+}
+```
+
+**5. Adicione o item de notificações**, reaproveitando o mesmo `ItemConfiguracao` (adicione dentro da `Column`, logo após o item de tema escuro):
+
+```kotlin
+import androidx.compose.material.icons.filled.Notifications
+
+HorizontalDivider()
+
+Text("Notificações", style = MaterialTheme.typography.titleSmall)
+
+ItemConfiguracao(
+    icone = { Icon(Icons.Default.Notifications, contentDescription = null) },
+    titulo = "Notificações",
+    descricao = "Receber alertas e avisos do app",
+    ativado = config.notificacoesAtivas,
+    aoAlterar = { escopo.launch { dataStore.atualizarNotificacoes(it) } }
+)
+```
+
+**6. Exiba o idioma atual.** Diferente das duas anteriores, esta é só leitura nesta tela (sem `Switch` — trocar o idioma fica para o Exercício 1 abaixo):
+
+```kotlin
+import androidx.compose.material.icons.filled.Language
+
+HorizontalDivider()
+
+Row(
+    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+    verticalAlignment = Alignment.CenterVertically
+) {
+    Icon(Icons.Default.Language, contentDescription = null)
+    Spacer(Modifier.width(16.dp))
+    Column {
+        Text("Idioma", style = MaterialTheme.typography.bodyLarge)
+        Text("Atual: ${config.idioma}", style = MaterialTheme.typography.bodySmall)
     }
 }
 ```
@@ -399,7 +414,6 @@ Nos exercícios anteriores, a tela acessava o DataStore diretamente — funciona
 
 ```kotlin
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -438,6 +452,12 @@ class ConfiguracoesViewModel(
         }
     }
 }
+```
+
+**2. Crie uma Factory para o ViewModel.** Como `ConfiguracoesViewModel` recebe um `ConfiguracoesDataStore` no construtor, o Android não sabe criá-lo sozinho — precisamos de uma `Factory` que ensine como montar essa instância:
+
+```kotlin
+import androidx.lifecycle.ViewModelProvider
 
 // Factory para injetar o DataStore no ViewModel
 class ConfiguracoesViewModelFactory(
@@ -454,7 +474,7 @@ class ConfiguracoesViewModelFactory(
 }
 ```
 
-**2. Tela com ViewModel** (`ConfiguracoesComViewModelScreen.kt`):
+**3. Tela com ViewModel** (`ConfiguracoesComViewModelScreen.kt`):
 
 ```kotlin
 import androidx.compose.foundation.layout.*
@@ -511,7 +531,7 @@ fun ConfiguracoesComViewModelScreen(viewModel: ConfiguracoesViewModel) {
 }
 ```
 
-**3. Conectando na MainActivity**:
+**4. Conectando na MainActivity**:
 
 ```kotlin
 import android.os.Bundle
