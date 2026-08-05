@@ -425,15 +425,34 @@ No mundo real, chamadas de rede falham o tempo todo: o usuário está sem intern
 
 ### Passo a Passo
 
+**1. Comece diferenciando só "sem internet" do resto.** Chamadas de rede no Kotlin lançam basicamente dois tipos de exceção que valem tratamento separado: `IOException` (problema de conexão — sem internet, DNS falhou, timeout) e `HttpException` (o servidor respondeu, mas com um código de erro, como 404 ou 500). Comece tratando só a mais comum:
+
+```kotlin
+import java.io.IOException
+
+// No ViewModel ou Repository:
+suspend fun buscarComTratamento(service: PiadaService): Result<Piada> {
+    return try {
+        val piada = service.buscarPiadaAleatoria()
+        Result.success(piada)
+    } catch (e: IOException) {
+        // Sem internet, DNS falhou, timeout, etc.
+        Result.failure(Exception("Sem conexão com a internet. Verifique sua rede."))
+    } catch (e: Exception) {
+        // Qualquer outro erro (incluindo HTTP) cai aqui, por enquanto sem distinção
+        Result.failure(Exception("Erro inesperado: ${e.message}"))
+    }
+}
+```
+
+Essa versão já resolve o caso mais comum (usuário sem internet), mas trata todo erro do servidor com a mesma mensagem genérica.
+
+**2. Diferencie os erros HTTP por código.** Adicione um `catch` específico para `HttpException`, com mensagens diferentes conforme o código de status:
+
 ```kotlin
 import retrofit2.HttpException
 import java.io.IOException
 
-fun main() {
-    // Tipos comuns de exceção em chamadas de rede:
-}
-
-// No ViewModel ou Repository, trate erros específicos:
 suspend fun buscarComTratamento(service: PiadaService): Result<Piada> {
     return try {
         val piada = service.buscarPiadaAleatoria()
@@ -450,7 +469,7 @@ suspend fun buscarComTratamento(service: PiadaService): Result<Piada> {
             else -> Result.failure(Exception("Erro HTTP ${e.code()}: ${e.message()}"))
         }
     } catch (e: Exception) {
-        // Outros erros inesperados
+        // Outros erros inesperados (ex: falha ao converter o JSON)
         Result.failure(Exception("Erro inesperado: ${e.message}"))
     }
 }
