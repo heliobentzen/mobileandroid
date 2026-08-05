@@ -354,12 +354,26 @@ fun ItemConfiguracao(
 - Ao reabrir o app, todas as configurações permanecem no estado salvo.
 - O componente `ItemConfiguracao` é reutilizável para novas opções.
 
+> **💡 Por trás dos panos**
+> O `Flow<Configuracoes>` combina três chaves diferentes do DataStore (`TEMA_ESCURO`, `NOTIFICACOES`, `IDIOMA`) em um único objeto por meio de `.map { prefs -> Configuracoes(...) }`. Toda vez que **qualquer uma** dessas chaves muda, o DataStore emite o mapa de preferências inteiro de novo, o `.map` reconstrói o objeto `Configuracoes` completo, e a tela observa só esse objeto único — em vez de precisar coletar três `Flow`s separados e sincronizá-los manualmente.
+
+### Exercícios
+
+1. Adicione uma opção de configuração "Tamanho da fonte" com três valores possíveis: Pequena, Média, Grande. Use `stringPreferencesKey` para guardar a escolha.
+   - Primeiro, adicione o campo `tamanhoFonte: String = "Média"` à data class `Configuracoes`.
+   - Depois, crie a chave e a função `atualizarTamanhoFonte(tamanho: String)` no `ConfiguracoesDataStore`, seguindo o padrão das outras preferências.
+   - Por fim, adicione um `Row` com três botões (ou um `DropdownMenu`) na tela para escolher o tamanho.
+   - *Dica se travar*: copie o padrão exato de `IDIOMA`, que também é uma `String` — só muda o nome da chave e da função.
+2. Adicione uma seção "Sobre" na tela, mostrando um texto fixo com a versão do app (pode ser um valor fixo no código, sem persistir no DataStore).
+
 ---
 
 ## Exercício 3: Integração com ViewModel
 
 ### Objetivo
 Mover a lógica do DataStore para um `ViewModel`, expondo as preferências como `StateFlow` para uma UI totalmente reativa.
+
+Nos exercícios anteriores, a tela acessava o DataStore diretamente — funcional para um exemplo simples, mas não é a estrutura recomendada em apps reais, porque mistura lógica de dados com a interface. Aqui você aplica o mesmo padrão MVVM que já viu no guia `04_mvvm_stateflow.md`, desta vez com o DataStore como fonte de dados no lugar de um `StateFlow` criado manualmente. É a forma correta e testável de expor preferências para a UI.
 
 ### Passo a Passo
 
@@ -511,6 +525,15 @@ class MainActivity : ComponentActivity() {
 - O `ViewModel` centraliza toda a lógica de leitura e escrita do DataStore.
 - A UI reage automaticamente a qualquer mudança via `StateFlow`.
 - O `collectAsStateWithLifecycle` pausa a coleta quando o app vai para segundo plano.
+
+> **💡 Por trás dos panos**
+> A `ConfiguracoesViewModelFactory` existe porque `ConfiguracoesViewModel` não tem um construtor vazio — ele precisa receber um `ConfiguracoesDataStore` para funcionar, e o Android não sabe de onde tirar esse valor sozinho. A `Factory` é o "manual de instruções" que ensina o sistema a montar esse ViewModel corretamente. Esse mesmo problema (fornecer dependências para um ViewModel) é resolvido de forma muito mais automática com o Hilt, que você viu no guia `09_hilt_di.md` — vale a pena comparar as duas abordagens lado a lado.
+
+### Exercícios
+
+1. Reescreva o `ConfiguracoesViewModel` para usar Hilt em vez da `Factory` manual (`@HiltViewModel` + `@Inject constructor`). Compare a quantidade de código necessária nas duas abordagens.
+   - *Dica se travar*: reveja o Exercício 1 do guia `09_hilt_di.md` para relembrar a sintaxe de `@HiltViewModel`.
+2. Adicione uma função `resetarConfiguracoes()` ao ViewModel que restaura todas as preferências para os valores padrão.
 
 ---
 
