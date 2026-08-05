@@ -191,7 +191,8 @@ Essa é a versão que usamos no restante da aula (o campo `enviando` entra em ce
 
 ## 4. Formulário Completo
 
-Exemplo de tela de cadastro conectando ViewModel, validação e campos visuais:
+Exemplo de tela de cadastro conectando ViewModel, validação e campos visuais. Por enquanto os três campos usam apenas o que já vimos (`value`, `onValueChange`, `isError`, `supportingText`) — as seções 5 e 6, a seguir, mostram como configurar o teclado de cada campo e mascarar a exibição da senha.
+
 ```kotlin
 @Composable
 fun TelaCadastro(viewModel: CadastroViewModel = viewModel()) {
@@ -211,23 +212,20 @@ fun TelaCadastro(viewModel: CadastroViewModel = viewModel()) {
             supportingText = { state.erroNome?.let { Text(it) } },
             singleLine = true, modifier = Modifier.fillMaxWidth()
         )
-        // Campo email — KeyboardType.Email exibe teclado com @
+        // Campo email
         OutlinedTextField(
             value = state.email, onValueChange = viewModel::onEmailChanged,
             label = { Text("E-mail") },
             isError = state.erroEmail != null,
             supportingText = { state.erroEmail?.let { Text(it) } },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             singleLine = true, modifier = Modifier.fillMaxWidth()
         )
-        // Campo senha — PasswordVisualTransformation oculta caracteres com ••••
+        // Campo senha
         OutlinedTextField(
             value = state.senha, onValueChange = viewModel::onSenhaChanged,
             label = { Text("Senha") },
             isError = state.erroSenha != null,
             supportingText = { state.erroSenha?.let { Text(it) } },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             singleLine = true, modifier = Modifier.fillMaxWidth()
         )
         // Botão de envio — desabilitado enquanto envia

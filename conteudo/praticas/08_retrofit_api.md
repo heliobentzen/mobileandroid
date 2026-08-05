@@ -143,14 +143,14 @@ class PiadaViewModel(
 
 **6. Tela Compose** (`PiadaScreen.kt`):
 
+A tela só precisa tratar os três estados possíveis do `uiState`: mostrar um indicador enquanto carrega, a piada quando chega, ou uma mensagem com opção de tentar de novo em caso de erro.
+
 ```kotlin
-import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -159,10 +159,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun PiadaScreen(viewModel: PiadaViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var revelarResposta by remember { mutableStateOf(false) }
-
-    // Quando a piada muda, esconde a resposta automaticamente
-    LaunchedEffect(uiState) { revelarResposta = false }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -187,37 +183,23 @@ fun PiadaScreen(viewModel: PiadaViewModel = viewModel()) {
             }
 
             is PiadaUiState.Sucesso -> {
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Pergunta da piada
                         Text(
                             text = state.piada.pergunta,
                             style = MaterialTheme.typography.bodyLarge,
                             textAlign = TextAlign.Center
                         )
-
-                        // Resposta — revelada ao clicar
-                        AnimatedVisibility(visible = revelarResposta) {
-                            Text(
-                                text = state.piada.resposta,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontStyle = FontStyle.Italic,
-                                color = MaterialTheme.colorScheme.primary,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        if (!revelarResposta) {
-                            OutlinedButton(onClick = { revelarResposta = true }) {
-                                Text("Revelar resposta 🎭")
-                            }
-                        }
+                        Text(
+                            text = state.piada.resposta,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
 

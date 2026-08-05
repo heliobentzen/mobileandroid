@@ -249,46 +249,9 @@ Essas regras garantem que código quebrado nunca chegue à branch principal, mes
 
 ---
 
-## 6. Fastlane (Visão Geral)
+## 5. Indo Além (Fastlane e Automação de Deploy)
 
-### O que é
-
-O [Fastlane](https://fastlane.tools/) é uma ferramenta open-source (código aberto) que automatiza o processo de build e deploy (publicação) de apps mobile, indo além do que o workflow de CI/CD sozinho normalmente faz. Ele é especialmente útil para:
-
-- **Upload automático** do AAB para o Google Play Console — sem precisar acessar o site manualmente para cada release.
-- **Gerenciamento de screenshots** e metadados da loja (título, descrição) direto por linha de comando.
-- **Distribuição de builds de teste** para equipes internas, sem passar pela Play Store.
-
-Um arquivo chamado `Fastfile` (escrito em Ruby, a linguagem do Fastlane) define **lanes** — sequências de tarefas nomeadas, parecidas com os `jobs` do GitHub Actions, mas focadas especificamente em build e publicação de apps mobile.
-
-### Exemplo comentado: Fastfile básico
-
-```ruby
-# Arquivo Fastfile para automação de deploy Android
-default_platform(:android) # define que este arquivo trata de automações Android
-
-platform :android do
-  # Lane para distribuição interna — uma "receita" nomeada que pode ser chamada por "fastlane deploy_interno"
-  desc "Enviar build para o Google Play (faixa interna)"
-  lane :deploy_interno do
-    gradle(
-      task: "bundle",            # gerar o AAB
-      build_type: "Release"      # tipo de build
-    )
-    upload_to_play_store(
-      track: "internal",         # faixa (trilha) de distribuição interna
-      aab: "app/build/outputs/bundle/release/app-release.aab" # caminho do AAB
-    )
-  end
-end
-```
-
-> O Fastlane pode ser integrado ao GitHub Actions como um passo adicional no workflow de release — ou seja, um dos `steps` do YAML pode simplesmente chamar `fastlane deploy_interno` em vez de comandos Gradle isolados.
-
-### Erros comuns / Pegadinhas
-
-- Introduzir o Fastlane antes de dominar o workflow básico de CI/CD: ele adiciona uma camada extra de configuração (Ruby, `Fastfile`) que só vale a pena quando você já automatiza builds regularmente e sente a dor de fazer o upload manual toda vez.
-- Achar que o Fastlane substitui os secrets do GitHub Actions: ele também precisa de credenciais (uma chave de API do Google Play, por exemplo) configuradas com segurança, seguindo o mesmo cuidado visto na Seção 4.
+Quando um time já automatiza builds regularmente e sente a dor de publicar manualmente a cada release, ferramentas como o [Fastlane](https://fastlane.tools/) entram em cena: elas automatizam o upload do AAB para a Play Store, o gerenciamento de metadados de loja e a distribuição de builds de teste, indo além do que um workflow básico de CI cobre. É uma camada extra de configuração (Ruby, arquivo `Fastfile`) que vale a pena estudar depois — não é pré-requisito para este curso, e a maioria dos times começa sem ela.
 
 ---
 
@@ -296,26 +259,24 @@ end
 
 - **CI/CD** automatiza tarefas repetitivas (build, testes, geração de artefatos) que, feitas manualmente, dependem da disciplina de cada desenvolvedor e são fáceis de esquecer.
 - O **GitHub Actions** define workflows em arquivos **YAML** dentro de `.github/workflows/`, organizados em `jobs` e `steps`.
-- **Secrets** guardam informações sensíveis (como a keystore em Base64) de forma segura, para que o pipeline consiga gerar um AAB assinado sem expor credenciais no repositório.
-- **Cache** de dependências do Gradle acelera builds repetidos; **branch protection rules** impedem que código sem CI aprovada chegue à branch principal.
-- O **Fastlane** é uma ferramenta opcional para automatizar o deploy completo até a Play Store, útil quando o fluxo manual de publicação já incomoda.
+- O pipeline essencial de mercado é **lint + testes + build** a cada push/PR — construído aqui em passos evolutivos (build/testes → lint → cache).
+- **Secrets** guardam informações sensíveis de forma segura, permitindo (quando necessário) gerar um AAB assinado sem expor credenciais no repositório.
+- **Branch protection rules** impedem que código sem CI aprovada chegue à branch principal.
+- Ferramentas como o **Fastlane** existem para automatizar o deploy completo até a Play Store, úteis quando o fluxo manual de publicação já incomoda — mas ficam fora do essencial deste curso.
 
-**Próximo passo**: este é o último módulo do curso. A melhor forma de consolidar tudo que você aprendeu — testes, publicação e CI/CD — é praticando em um app real, ainda que simples. Escolha um projeto (pode ser um dos exercícios anteriores), escreva alguns testes para ele, configure um workflow de CI no GitHub Actions e publique-o de verdade na trilha interna do Google Play Console. Passar pelo fluxo completo, do código até um app instalável, é o que transforma a teoria deste curso em experiência prática.
+**Próximo passo**: o último arquivo deste módulo, [Vibe Coding](./04_vibe_coding.md), fecha o curso mostrando como usar assistentes de IA de forma responsável no seu fluxo de trabalho como dev Android.
 
 ---
 
-## 7. Exercícios Práticos
+## 6. Exercícios Práticos
 
-1. **Workflow de CI básico**: adicione o workflow da Seção 2 (`.github/workflows/android-ci.yml`) ao seu projeto e confirme que ele roda automaticamente ao abrir um pull request.
+1. **Workflow de CI básico**: adicione o workflow do Passo 1 da Seção 2 (`.github/workflows/android-ci.yml`) ao seu projeto e confirme que ele roda automaticamente ao abrir um pull request.
    - Checkpoint: veja a execução na aba "Actions" do GitHub e confira se build e testes passaram.
 
-2. **Workflow completo**: evolua para o workflow da Seção 3, adicionando lint e cache do Gradle.
+2. **Pipeline completo**: evolua o workflow adicionando lint (Passo 2) e cache do Gradle (Passo 3).
    - Checkpoint: compare o tempo de execução da primeira vez (sem cache) com a segunda vez (com cache já salvo).
 
-3. **Secrets e AAB assinado**: configure os quatro secrets necessários (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) e adicione o workflow de release da Seção 4.
-   - Checkpoint: crie uma tag (`git tag v1.0.0 && git push --tags`) e confirme que o AAB assinado aparece como artefato do workflow.
-
-4. **Branch protection**: configure as regras de proteção da Seção 5 na branch `main` do seu repositório.
+3. **Branch protection**: configure as regras de proteção da Seção 4 na branch `main` do seu repositório.
    - Checkpoint: tente mesclar um PR com testes falhando de propósito, e confirme que o GitHub bloqueia o merge.
 
-5. **Desafio final**: monte o fluxo completo, de ponta a ponta — código com testes, workflow de CI validando cada PR, workflow de release gerando o AAB assinado, e publicação manual (ou via Fastlane, se quiser ir além) na trilha interna do Google Play Console.
+4. **Desafio final**: monte o fluxo completo de ponta a ponta — código com testes, workflow de CI validando cada PR, e publicação manual na trilha interna do Google Play Console (Módulo 4.02).
