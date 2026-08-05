@@ -148,7 +148,11 @@ fun PostScreen(viewModel: PostViewModel = hiltViewModel()) {
 
 ## 5. @Module e @Provides
 
-O Hilt não cria automaticamente classes externas (Retrofit, Room). Usamos `@Module`:
+O Hilt não cria automaticamente classes externas (Retrofit, Room) — para essas, usamos `@Module`. Vamos montar o grafo de módulos peça por peça, em vez de olhar tudo pronto de uma vez.
+
+#### Passo 1 — um módulo para o Retrofit
+
+`@Module` marca uma classe/objeto como fonte de dependências; `@InstallIn` diz em qual componente (tempo de vida) esse módulo vive; `@Provides` marca a função que efetivamente constrói o objeto.
 
 ```kotlin
 @Module
@@ -164,7 +168,15 @@ object NetworkModule {
             .create(JsonPlaceholderApi::class.java) // Cria implementação da interface
     }
 }
+```
 
+Com isso, qualquer classe `@Inject constructor` que peça um `JsonPlaceholderApi` recebe essa instância automaticamente. Falta ainda o banco de dados.
+
+#### Passo 2 — um módulo para o Room
+
+O mesmo padrão se repete para o Room: um `@Provides` para o `AppDatabase`, e outro para o `PostDao` (que vem do banco já criado).
+
+```kotlin
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -177,6 +189,8 @@ object DatabaseModule {
     fun providePostDao(database: AppDatabase): PostDao = database.postDao() // Banco já é singleton
 }
 ```
+
+Repare que `providePostDao` recebe um `AppDatabase` como parâmetro: o Hilt entende essa dependência entre os dois `@Provides` e chama `provideDatabase` primeiro, automaticamente. Com `NetworkModule` e `DatabaseModule`, já temos dois ramos do grafo de dependências prontos; a seção 8 mostra o terceiro ramo (`RepositoryModule`, com `@Binds`), que liga tudo isso ao `PostRepository`.
 
 ---
 

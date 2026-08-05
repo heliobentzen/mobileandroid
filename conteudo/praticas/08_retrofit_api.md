@@ -266,29 +266,24 @@ fun PostDto.toDomain() = Post(id = id, titulo = titulo, corpo = corpo)
 
 **2. Service** (`PostService.kt`):
 
+Para exibir a lista, só precisamos de um endpoint:
+
 ```kotlin
 import retrofit2.http.GET
-import retrofit2.http.Path
-import retrofit2.http.Query
 
 interface PostService {
     @GET("posts")
     suspend fun buscarPosts(): List<PostDto>
-
-    @GET("posts/{id}")
-    suspend fun buscarPost(@Path("id") id: Int): PostDto
-
-    @GET("posts")
-    suspend fun buscarPostsDoUsuario(@Query("userId") userId: Int): List<PostDto>
 }
 ```
+
+*Repare que `PostService` usa apenas `@GET`. Outras anotações do Retrofit, como `@Path` (para IDs na URL, ex: `posts/{id}`) e `@Query` (para parâmetros, ex: `?userId=1`), você vai usar quando precisar buscar um item específico — veja o Exercício 2 abaixo.*
 
 **3. Repositório** (`PostRepository.kt`):
 
 ```kotlin
 class PostRepository(private val service: PostService) {
     suspend fun buscarPosts(): List<Post> = service.buscarPosts().map { it.toDomain() }
-    suspend fun buscarPost(id: Int): Post = service.buscarPost(id).toDomain()
 }
 ```
 
@@ -415,7 +410,7 @@ fun PostListScreen(
 1. Adicione uma barra de pesquisa que filtra os posts pelo título em tempo real (sem nova chamada de rede).
    - *Dica se travar*: filtre sobre a lista já carregada em `state.posts` — não é preciso chamar a API de novo a cada letra digitada.
 2. Implemente uma tela de detalhe: ao clicar em um post, navegue para uma nova tela que exibe o título e o corpo completo.
-   - *Dica se travar*: reveja o guia `01_compose_navigation.md` para relembrar como passar dados entre telas usando o `NavHost`.
+   - *Dica se travar*: reveja o guia `01_compose_navigation.md` para relembrar como passar dados entre telas usando o `NavHost`. Como o post já está carregado na lista, não é preciso buscar de novo na API — mas se quiser praticar, adicione `@GET("posts/{id}") suspend fun buscarPost(@Path("id") id: Int): PostDto` ao `PostService` e busque o post pelo ID recebido na rota.
 3. Adicione paginação manual: exiba os 10 primeiros posts e um botão "Carregar mais" que adiciona os próximos 10.
    - *Dica se travar*: guarde quantos posts já estão visíveis em um estado (`var quantidadeVisivel by remember { mutableStateOf(10) }`) e use `posts.take(quantidadeVisivel)` para exibir só uma parte da lista.
 

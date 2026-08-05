@@ -110,7 +110,9 @@ suspend fun salvarIdioma(context: Context, idioma: String) {
 
 ## 3. Integração com ViewModel
 
-O ViewModel expõe as preferências como `StateFlow` para a UI coletar de forma segura com o ciclo de vida.
+O ViewModel expõe as preferências como `StateFlow` para a UI coletar de forma segura com o ciclo de vida. Vamos começar com um único valor e depois evoluir para várias preferências combinadas.
+
+#### Passo 1 — expondo um único valor
 
 ```kotlin
 import androidx.lifecycle.ViewModel
@@ -118,6 +120,33 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+class ConfiguracoesViewModel(
+    private val dataStore: androidx.datastore.core.DataStore<Preferences>
+) : ViewModel() {
+
+    val temaEscuro: StateFlow<Boolean> = dataStore.data
+        .map { prefs -> prefs[PreferencesKeys.TEMA_ESCURO] ?: false }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
+
+    fun alternarTema(ativado: Boolean) {
+        viewModelScope.launch {
+            dataStore.edit { prefs -> prefs[PreferencesKeys.TEMA_ESCURO] = ativado }
+        }
+    }
+}
+```
+
+**A limitação:** funciona bem para um único campo, mas uma tela de configurações real costuma ter vários (idioma, notificações, tamanho de fonte...). Expor um `StateFlow` separado para cada campo obrigaria a UI a coletar vários fluxos ao mesmo tempo — repetitivo e difícil de manter.
+
+#### Passo 2 — agrupando várias preferências em um único estado
+
+Em vez de um `StateFlow<Boolean>` por campo, criamos uma `data class` que representa o estado completo da tela, e um único `map` que lê todos os campos de uma vez:
+
+```kotlin
 // Estado da tela de configurações
 data class ConfiguracoesUiState(
     val temaEscuro: Boolean = false,
