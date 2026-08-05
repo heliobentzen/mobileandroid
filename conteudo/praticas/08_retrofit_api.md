@@ -42,6 +42,8 @@ Adicione a permissão de internet ao `AndroidManifest.xml`:
 ### Objetivo
 Fazer uma chamada simples a uma API pública e exibir o resultado na tela.
 
+Consumir uma API é o que conecta seu app ao mundo real — dados de clima, notícias, produtos, redes sociais, quase tudo vem de algum servidor remoto. Esta prática mostra o fluxo completo, do menor pedaço (definir o endpoint) até o maior (exibir na tela com estados de carregamento e erro), que você vai repetir em praticamente toda tela que busca dados de fora do app.
+
 **API usada**: [Official Joke API](https://official-joke-api.appspot.com/random_joke) (sem chave)
 
 ### Passo a Passo

@@ -315,11 +315,19 @@ class MainActivity : ComponentActivity() {
 }
 ```
 
+> **💡 Por trás dos panos**
+> Repare que `anotacoes` no ViewModel vem de `dao.buscarTodas().stateIn(...)` — o `Flow` retornado pelo DAO é **reativo**: toda vez que uma anotação é inserida, atualizada ou removida no banco, o Room emite automaticamente uma nova lista atualizada, e a tela redesenha sozinha. Você nunca precisa chamar manualmente "recarregar a lista" depois de salvar algo — é esse fluxo automático (`banco muda → Flow emite → StateFlow atualiza → UI recompõe`) que torna o Room tão prático de usar junto com Compose.
+
 ### Exercícios
 
-1. **Editar anotações**: Adicione a funcionalidade de editar uma anotação existente. Ao clicar no card, abra o mesmo `AlertDialog` pré-preenchido com os dados atuais. Use `viewModel.atualizar(...)`.
+1. **Editar anotações**: Adicione a funcionalidade de editar uma anotação existente.
+   - Primeiro, guarde a anotação selecionada para edição em um `remember { mutableStateOf<Anotacao?>(null) }`.
+   - Depois, ao clicar no card, preencha esse estado e abra o mesmo `AlertDialog`, mas com os campos já preenchidos com os dados atuais.
+   - Por fim, no botão de confirmação, chame `viewModel.atualizar(...)` em vez de `adicionar(...)`.
+   - *Dica se travar*: reaproveite o `DialogoNovaAnotacao` existente, adicionando parâmetros opcionais de `tituloInicial` e `conteudoInicial`.
 2. **Pesquisa**: Adicione um campo de busca na `TopAppBar`. Use a função `filter` sobre a lista de anotações para exibir apenas as que contêm o texto buscado no título ou no conteúdo.
 3. **Ordenação**: Adicione um menu no canto superior direito com opções de ordenação: "Mais recentes primeiro" e "Mais antigas primeiro". Modifique a query do DAO conforme a opção selecionada.
+   - *Dica se travar*: você pode criar duas funções no DAO (`buscarTodasRecentes()` e `buscarTodasAntigas()`, cada uma com `ORDER BY` diferente) e alternar entre elas no ViewModel.
 
 ---
 
@@ -327,6 +335,8 @@ class MainActivity : ComponentActivity() {
 
 ### Objetivo
 Entender um caso de uso comum: salvar e remover favoritos localmente.
+
+"Favoritar" é um dos recursos mais pedidos em qualquer app com listas — filmes, produtos, artigos, receitas. Esta prática mostra um padrão bem específico e muito reutilizável: verificar se um item já existe no banco antes de decidir se ele deve ser inserido ou removido, alternando o estado com um único método (`alternarFavorito`).
 
 ### Passo a Passo
 
@@ -399,9 +409,13 @@ class FavoritoViewModel(private val dao: FavoritoDao) : ViewModel() {
 }
 ```
 
+> **💡 Por trás dos panos**
+> Note que a `@PrimaryKey` de `FilmeFavorito` não usa `autoGenerate = true` como em `Anotacao` — aqui o ID é o próprio ID do filme (vindo de outra fonte, como uma API). Isso é proposital: queremos que cada filme apareça no máximo uma vez na tabela de favoritos, e usar o mesmo ID do filme como chave primária garante isso automaticamente (o Room rejeita — ou substitui, dependendo do `OnConflictStrategy` — uma inserção com uma chave primária repetida).
+
 ### Exercícios
 
 1. Adicione ao ViewModel uma função `estaFavoritado(id: Int): Flow<Boolean>` que emite `true` ou `false` conforme o estado no banco. Use-a em cada item da lista para mostrar um ícone de coração preenchido ou vazio.
+   - *Dica se travar*: crie no DAO uma query `@Query("SELECT COUNT(*) > 0 FROM favoritos WHERE id = :id") fun estaFavoritadoFlow(id: Int): Flow<Boolean>` — o Room converte o `COUNT(*) > 0` automaticamente em `Boolean`.
 2. Adicione uma tela "Meus Favoritos" que lista todos os filmes salvos, com a possibilidade de remover cada um.
 3. Adicione uma coluna `categoria: String` à entidade `FilmeFavorito`. Atualize a query do DAO para retornar favoritos filtrados por categoria.
 
