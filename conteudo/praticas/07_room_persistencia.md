@@ -41,6 +41,8 @@ dependencies {
 ### Objetivo
 Criar um app simples de anotações que salva os dados mesmo quando o app é fechado.
 
+Sem persistência local, todo dado do app desaparece assim que o usuário fecha o aplicativo ou o sistema o encerra para liberar memória — uma experiência frustrante. O Room resolve isso salvando dados diretamente no dispositivo, em um banco SQLite gerenciado para você. Esta prática cobre o fluxo CRUD completo (Create, Read, Update, Delete) — o conjunto de operações que praticamente qualquer app com dados próprios precisa implementar, seja uma lista de tarefas, um catálogo de produtos favoritos ou um diário pessoal.
+
 ### Passo a Passo
 
 **1. Entity — Representa a tabela** (`Anotacao.kt`):
