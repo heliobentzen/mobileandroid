@@ -2,6 +2,8 @@
 
 Este guia irá demonstrar como criar um aplicativo Android simples usando Jetpack Compose, com duas telas e navegação entre elas. É ideal para quem está começando com o Compose e quer entender os conceitos básicos de navegação.
 
+**Por que isso importa?** Praticamente todo app Android real tem mais de uma tela — uma lista que abre um detalhe, um formulário que leva a uma confirmação, um menu de configurações. Navegação é o mecanismo que controla "qual tela está visível agora" e "como o usuário chegou até ela" (inclusive o botão Voltar do sistema). Depois de dominar este guia, você vai conseguir estruturar qualquer app com múltiplas telas e passar dados entre elas — a base de praticamente qualquer aplicativo profissional.
+
 ## 1. Configuração do Projeto
 
 Primeiro, vamos configurar um novo projeto no Android Studio.
@@ -70,6 +72,8 @@ import com.example.composenavigationapp.ui.theme.ComposeNavigationAppTheme
 
 // ... (código existente da MainActivity)
 
+// ScreenA recebe o NavController como parâmetro para poder "pedir" a navegação.
+// A tela em si não sabe COMO a navegação acontece, só chama os métodos do controller.
 @Composable
 fun ScreenA(navController: NavController) {
     Column(
@@ -78,12 +82,15 @@ fun ScreenA(navController: NavController) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(text = "Esta é a Tela A")
+        // navigate("screen_b") empilha a Tela B por cima da Tela A.
+        // A rota é só um texto (String) que identifica o destino — como um endereço.
         Button(onClick = { navController.navigate("screen_b") }) {
             Text("Ir para Tela B")
         }
     }
 }
 
+// message é opcional (String?) porque a Tela B pode ser aberta com ou sem uma mensagem vinda da Tela A.
 @Composable
 fun ScreenB(navController: NavController, message: String?) {
     Column(
@@ -92,7 +99,9 @@ fun ScreenB(navController: NavController, message: String?) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(text = "Esta é a Tela B")
+        // ?.let { } só executa o bloco se message não for nulo — evita checar "if (message != null)" manualmente
         message?.let { Text(text = "Mensagem da Tela A: $it") }
+        // popBackStack() remove a tela atual da pilha e volta para a anterior (como o botão Voltar do celular)
         Button(onClick = { navController.popBackStack() }) {
             Text("Voltar para Tela A")
         }
@@ -177,6 +186,9 @@ fun AppNavigation() {
 *   `composable("screen_b?message={message}")`: Define uma rota para a `ScreenB`. Observe o `?message={message}`. Isso indica que a `ScreenB` pode receber um argumento opcional chamado `message`.
     *   Dentro do bloco `composable` para `screen_b`, recuperamos o argumento `message` usando `it.arguments?.getString("message")`.
 
+> **💡 Por trás dos panos**
+> O `NavHost` funciona como uma **pilha de telas** (parecido com uma pilha de pratos). Cada vez que você chama `navigate("rota")`, uma nova tela é empilhada por cima da atual. Quando você chama `popBackStack()` ou aperta o botão Voltar do sistema, a tela do topo é removida e a de baixo volta a ficar visível. É por isso que o Android sabe automaticamente para onde voltar sem você precisar programar isso manualmente — o `NavController` já mantém essa pilha organizada para você.
+
 ## 5. Navegando e Passando Dados
 
 Para navegar da `ScreenA` para a `ScreenB` e passar um dado, você modificaria a chamada `navController.navigate` na `ScreenA` da seguinte forma:
@@ -201,6 +213,25 @@ fun ScreenA(navController: NavController) {
 ```
 
 Agora, ao clicar no primeiro botão, a `ScreenB` será aberta e exibirá a mensagem "Olá da Tela A!". O segundo botão ainda navega sem passar a mensagem.
+
+## Exercícios
+
+1. **Adicione uma terceira tela (`ScreenC`).**
+   - Primeiro, crie o composable `ScreenC` seguindo o mesmo padrão de `ScreenA` e `ScreenB` (recebendo `navController`).
+   - Depois, registre a rota `"screen_c"` dentro do `NavHost`.
+   - Por fim, adicione um botão em `ScreenB` que navegue até `ScreenC`.
+   - *Dica se travar*: copie a estrutura de `ScreenB` e troque apenas o texto e a rota — não precisa reinventar do zero.
+
+2. **Passe um número como argumento em vez de texto.** Crie uma rota `"screen_b?contador={contador}"` e recupere o valor com `it.arguments?.getString("contador")?.toIntOrNull() ?: 0`.
+   - *Dica se travar*: lembre-se de que todo argumento de rota chega como `String?` — você precisa converter manualmente para `Int`.
+
+3. **Implemente um botão "Início" na `ScreenC`** que volta direto para a `ScreenA`, mesmo que existam várias telas empilhadas no meio. Pesquise sobre o parâmetro `popUpTo` do `navigate()`.
+   - *Dica se travar*: `navController.navigate("screen_a") { popUpTo("screen_a") { inclusive = false } }` remove tudo que está entre a tela atual e `screen_a`.
+
+## Erros comuns
+
+- **Esquecer de registrar a rota no `NavHost`**: se você chamar `navController.navigate("tela_nova")` mas não criar o `composable("tela_nova") { ... }` correspondente, o app crasha com uma exceção informando que a rota não foi encontrada.
+- **Digitar o nome da rota errado**: como as rotas são strings soltas (`"screen_b"`), um erro de digitação (`"screenb"`, por exemplo) não é detectado pelo compilador — só em tempo de execução. Prefira usar constantes (`const val ROTA_TELA_B = "screen_b"`) para evitar esse tipo de erro.
 
 ## Conclusão
 
