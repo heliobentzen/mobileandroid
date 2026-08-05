@@ -169,12 +169,24 @@ fun PerfilScreen() {
 - O nome digitado é persistido e exibido mesmo após reiniciar o app.
 - O switch de tema escuro mantém seu estado entre sessões.
 
+> **💡 Por trás dos panos**
+> `val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "configuracoes")` cria uma **extension property** no `Context` — ou seja, adiciona uma propriedade nova a uma classe que você não escreveu. O `by preferencesDataStore(...)` garante que só existe uma única instância do DataStore para todo o app, mesmo que essa propriedade seja acessada de vários lugares diferentes. Isso é importante: ter duas instâncias do mesmo DataStore ao mesmo tempo pode causar inconsistência entre leituras e escritas.
+
+### Exercícios
+
+1. Adicione uma terceira preferência: `idadeUsuario` (do tipo `Int`), usando `intPreferencesKey`. Salve e exiba na mesma tela.
+   - *Dica se travar*: siga exatamente o padrão de `NOME_USUARIO` — troque só o tipo da chave e o tipo do valor.
+2. Adicione um botão "Limpar preferências" que apaga todos os dados salvos no DataStore de uma vez.
+   - *Dica se travar*: pesquise sobre `context.dataStore.edit { it.clear() }`.
+
 ---
 
 ## Exercício 2: Tela de Configurações
 
 ### Objetivo
 Criar uma tela de configurações completa com múltiplas opções salvas no DataStore.
+
+Uma tela de configurações raramente tem só uma opção — geralmente é um conjunto de preferências relacionadas (aparência, notificações, idioma, privacidade). Esta prática mostra como agrupar várias chaves do DataStore em um único objeto (`Configuracoes`) e expô-las como um só `Flow`, em vez de ficar observando cada preferência separadamente — um padrão que deixa a tela mais simples de programar e mais fácil de expandir com novas opções no futuro.
 
 ### Passo a Passo
 
