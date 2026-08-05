@@ -4,12 +4,16 @@ Neste módulo você aprenderá a navegar entre telas em um app Android usando a 
 **Navigation Compose**. Vamos construir exemplos passo a passo: primeiro um fluxo simples
 (Home → Detalhe), depois um exercício de Login e, por fim, uma barra de navegação inferior.
 
+## O que é "navegação" em um app?
+
+Um app quase nunca tem uma tela só. "Navegar" significa trocar qual tela está visível — por exemplo, sair da lista de produtos e mostrar a tela de detalhes de um produto específico, ou voltar da tela de detalhes para a lista. O **Navigation Compose** é a biblioteca oficial do Android para gerenciar essas trocas de tela dentro de um app 100% Compose, incluindo o comportamento do botão "voltar" e a passagem de dados entre telas.
+
 ---
 
 ## Por que usar o Navigation Component?
 
 Em apps com várias telas, gerenciar manualmente qual tela exibir se torna complexo e propenso
-a erros. O **Navigation Component** resolve isso oferecendo:
+a erros — imagine controlar "na mão" uma variável dizendo qual tela mostrar, mais outra lista para lembrar por onde o usuário passou (para o botão voltar funcionar), mais a lógica de passar dados de uma tela para outra sem se perder. O **Navigation Component** resolve isso oferecendo:
 
 | Benefício | O que significa na prática |
 |---|---|
@@ -19,12 +23,14 @@ a erros. O **Navigation Component** resolve isso oferecendo:
 | **Testabilidade** | O `NavHostController` pode ser substituído em testes para verificar a navegação. |
 | **Deep links** | Suporte nativo para abrir telas específicas via links externos. |
 
+**O que é o "back stack"?** É a pilha de telas que o usuário já visitou dentro do fluxo de navegação — como uma pilha de cartas: a última tela aberta fica no topo, e apertar "voltar" remove essa carta do topo, revelando a de baixo (a tela anterior). O `Navigation Component` gerencia essa pilha para você automaticamente.
+
 ---
 
 ## Quando usar Intents vs Navigation Compose?
 
-- **Navigation Compose** — para navegar entre telas **dentro** do seu app (ex: lista → detalhes).
-- **Intents** — para abrir **outros apps** ou o sistema (ex: navegador, câmera, compartilhamento).
+- **Navigation Compose**: para navegar entre telas **dentro** do seu app (ex: lista → detalhes).
+- **Intents**: mecanismo do Android para abrir **outros apps** ou funcionalidades do sistema (ex: navegador, câmera, compartilhamento).
 
 > **Regra prática:** tela do seu app → Navigation Compose. Outro app ou sistema → Intent.
 
@@ -51,8 +57,11 @@ dependencies {
 
 ## Conceito principal: Rotas com Sealed Class
 
-A navegação em Compose funciona com **rotas** (strings que identificam cada tela).
-Para centralizar os caminhos e evitar erros de digitação, usamos uma **sealed class**:
+### O que é uma rota
+
+Uma **rota** é uma string que identifica cada tela dentro do grafo de navegação — funciona como um "endereço" (parecido com uma URL). O `NavHost` (que veremos a seguir) usa essa string para saber qual composable mostrar.
+
+Para centralizar os caminhos e evitar erros de digitação (como escrever `"detial/123"` em vez de `"detail/123"` em algum lugar do código), usamos uma **sealed class**: um tipo do Kotlin que restringe quais subtipos podem existir, todos declarados no mesmo arquivo — assim todas as rotas do app ficam visíveis em um único lugar.
 
 ```kotlin
 // Cada objeto representa uma tela do app.
@@ -77,7 +86,7 @@ sealed class AppRoute(val path: String) {
 
 ## Passo 1: Configurar o NavHost
 
-O `NavHost` troca as telas de acordo com a rota atual:
+O **`NavHost`** é o composable que efetivamente troca as telas na tela do celular, de acordo com a rota atual. Ele funciona como um "container" que sempre mostra a tela correspondente à rota ativa no momento.
 
 ```kotlin
 @Composable
@@ -106,6 +115,10 @@ fun AppNavHost(
     }
 }
 ```
+
+**O que é `NavHostController`?** É o objeto que efetivamente comanda a navegação: você chama `navController.navigate("rota")` para trocar de tela, e ele atualiza o `NavHost` e o back stack automaticamente. `rememberNavController()` cria (ou recupera, em recomposições) essa instância.
+
+**Por que a `HomeScreen` recebe um callback (`onOpenDetail`) em vez do `navController` diretamente?** Se cada tela recebesse o `NavHostController` diretamente, ela ficaria "acoplada" à navegação e mais difícil de testar isoladamente (você precisaria simular um `NavController` completo só para testar o botão). Passando um callback simples (`(String) -> Unit`), a tela não precisa saber nada sobre como a navegação funciona — só avisa "o usuário quer abrir o item X" e quem decide como navegar é o `AppNavHost`.
 
 ## Passo 2: Criar as Telas
 
@@ -136,9 +149,11 @@ class MainActivity : ComponentActivity() {
 }
 ```
 
+---
+
 ## Testando a navegação
 
-Testes instrumentados verificam se clicar em um botão realmente muda de tela:
+Testes instrumentados verificam se clicar em um botão realmente muda de tela. Isso é possível porque `AppNavHost` recebe o `navController` como parâmetro (com valor padrão) — em produção usamos o padrão, mas em testes podemos renderizar o `NavHost` completo e simular interações reais do usuário.
 
 ```kotlin
 @get:Rule
@@ -155,12 +170,14 @@ fun navegaParaDetalhe() {
 }
 ```
 
+---
+
 ## Exercício Prático: Fluxo de Login
 
 **Objetivo:** criar um fluxo com duas telas — `LoginScreen` (campo de texto + botão) e
 `WelcomeScreen` (exibe o nome digitado).
 
-### Dicas (tente resolver antes de ver o código)
+### Checkpoints (tente resolver antes de ver a solução)
 
 1. Crie uma sealed class `LoginRoute` com duas rotas: `Login` (sem argumentos) e
    `Welcome` (com argumento `username`).
@@ -169,6 +186,8 @@ fun navegaParaDetalhe() {
 3. Na `LoginScreen`, use `remember { mutableStateOf("") }` para guardar o texto digitado
    e passe-o via callback quando o botão for clicado.
 4. Na `WelcomeScreen`, apenas exiba o nome recebido como parâmetro.
+
+> **Dica:** se travar no passo 2, releia o "Passo 1" acima — o padrão é idêntico ao `AppNavHost`, só muda o nome das rotas e das telas.
 
 ### Solução comentada
 
@@ -240,10 +259,11 @@ fun WelcomeScreen(username: String) {
 }
 ```
 
+---
+
 ## Bottom Navigation (Barra de Navegação Inferior)
 
-Apps com seções principais (Início, Busca, Perfil) costumam usar uma barra inferior.
-Reutilizamos o padrão de sealed class para manter a consistência.
+Apps com seções principais (Início, Busca, Perfil) costumam usar uma barra inferior fixa, onde cada aba corresponde a um destino de navegação diferente. Reutilizamos o padrão de sealed class para manter a consistência.
 
 ### Rotas com ícone e título
 ```kotlin
@@ -315,8 +335,19 @@ class MainActivity : ComponentActivity() {
 
 Se você trabalhar em um projeto que ainda usa Fragments e XML, o plugin **Safe Args** gera
 classes de navegação a partir de um grafo XML (`nav_graph.xml`). Isso oferece segurança de
-tipos automaticamente. Porém, em projetos **100% Compose** (como neste curso), usamos
-`navigation-compose` com sealed classes, como visto acima.
+tipos automaticamente (o compilador avisa se você tentar passar um argumento do tipo errado). Porém, em projetos **100% Compose** (como neste curso), usamos
+`navigation-compose` com sealed classes, como visto acima — o mesmo objetivo (rotas seguras e centralizadas), com uma abordagem 100% Kotlin.
+
+---
+
+## Erros comuns / Pegadinhas
+
+- **Esquecer de declarar o tipo do argumento (`navArgument { type = ... }`)**: sem isso, o `Navigation Compose` pode não conseguir extrair o valor corretamente do `backStackEntry`, retornando `null`.
+- **Passar o `NavController` inteiro para telas internas em vez de callbacks**: isso "vaza" a responsabilidade de navegação para todas as telas, dificultando testes e reuso (veja a explicação no Passo 1 acima).
+- **Esquecer `launchSingleTop = true` na navegação por abas**: sem isso, cada clique na mesma aba empilha uma nova instância da tela no back stack, fazendo o botão "voltar" passar por várias cópias da mesma tela antes de sair do app.
+- **Concatenar argumentos manualmente na URL sem usar a função `build()`**: isso facilita erros de digitação. Sempre centralize a montagem da rota (como fizemos com `AppRoute.Detail.build(itemId)`).
+
+---
 
 ## Resumo
 
@@ -328,3 +359,5 @@ tipos automaticamente. Porém, em projetos **100% Compose** (como neste curso), 
 | `sealed class` | Centraliza todas as rotas, evitando strings soltas no código. |
 | `NavigationBar` | Barra inferior do Material 3 para navegação entre seções. |
 | `popUpTo` / `launchSingleTop` | Controlam o comportamento da pilha de telas ao navegar. |
+
+**Próximo passo**: na próxima aula (`05_acessibilidade.md`) você vai aprender a tornar as telas que acabou de construir acessíveis para todos os usuários, incluindo quem usa leitores de tela como o TalkBack.

@@ -31,6 +31,21 @@ Coroutines são como um garçom super-eficiente que sabe gerenciar seu tempo. Em
 
 Coroutines são "tarefas leves" que rodam em cima de threads existentes. Elas podem ser **suspensas** e **retomadas**. Suspender uma coroutine não bloqueia a thread; apenas libera a thread para fazer outras coisas. Isso nos permite executar muitas operações concorrentes com um número pequeno de threads, tornando-as muito mais eficientes.
 
+### O que é uma "função suspensa" (`suspend fun`)?
+
+Toda vez que você vê a palavra-chave `suspend` na frente de uma função, é um aviso: "esta função pode demorar, e ela sabe pausar sem travar ninguém". É a forma que o Kotlin usa para marcar "este é um ponto onde o garçom pode ir para a cozinha e voltar depois".
+
+```kotlin
+// O "suspend" avisa: essa função só pode ser chamada de dentro de uma coroutine
+// (ou de outra função suspend), porque ela pode pausar a execução.
+suspend fun buscarUsuario(id: Int): Usuario {
+    delay(1000) // "Pausa" a coroutine por 1s sem bloquear a thread.
+    return Usuario(id, "Ana")
+}
+```
+
+Uma função `suspend` **não roda em uma thread separada automaticamente** — ela só ganha a capacidade de pausar e retomar. Em qual thread ela roda depende do `Dispatcher` usado (veremos a seguir). Se você tentar chamar uma função `suspend` fora de uma coroutine (por exemplo, direto dentro do `onClick` de um botão), o código não vai compilar — esse é o compilador te protegendo de travar a UI por engano.
+
 Neste módulo, vamos explorar os pilares que tornam as coroutines tão poderosas: `Dispatchers` (onde a tarefa é executada), Concorrência Estruturada (como gerenciar o ciclo de vida das tarefas) e Cancelamento (como parar uma tarefa de forma segura).
 
 ---
@@ -142,6 +157,21 @@ println("Trabalho cancelado.")
 ```
 
 Usar a propriedade `isActive` em loops computacionais garante que sua coroutine coopere com o cancelamento, tornando seu aplicativo mais seguro e previsível.
+
+---
+
+## Erros Comuns / Pegadinhas
+
+Estes são os deslizes mais frequentes de quem está começando com coroutines. Vale a pena revisar seu código procurando por eles.
+
+1. **Usar `Thread.sleep()` em vez de `delay()` dentro de uma coroutine.** `Thread.sleep()` bloqueia a thread inteira — o garçom literalmente para e ninguém mais é atendido. `delay()` é uma função `suspend` que libera a thread para outras tarefas enquanto espera. Dentro de uma coroutine, sempre prefira `delay()`.
+
+2. **Usar `GlobalScope.launch` em vez de um escopo com ciclo de vida (`viewModelScope`, `lifecycleScope`).** `GlobalScope` vive enquanto o processo do app existir — ele nunca é cancelado automaticamente. Isso costuma causar vazamento de memória (a coroutine continua rodando e segurando referências mesmo depois que a tela foi fechada) e, às vezes, crash ao tentar atualizar uma UI que não existe mais. Prefira sempre escopos vinculados ao ciclo de vida da tela ou do ViewModel.
+
+3. **Esquecer que o cancelamento é cooperativo.** Como vimos na seção anterior, uma coroutine que faz um loop pesado sem checar `isActive` (ou sem chamar nenhuma função `suspend`, que já checa isso internamente) simplesmente ignora pedidos de cancelamento e continua rodando, consumindo bateria e CPU à toa.
+
+4. **Chamar uma função de rede ou banco de dados sem `withContext(Dispatchers.IO)`.** Se a função em si não garante a troca de thread (por exemplo, uma chamada de rede feita "na mão" sem Retrofit), rodar direto dentro de `viewModelScope.launch { }` (que usa `Dispatchers.Main` por padrão) trava a UI. Sempre confirme em qual `Dispatcher` a operação pesada está rodando.
+
 ---
 
 ## Resumo
@@ -162,19 +192,24 @@ Usar a propriedade `isActive` em loops computacionais garante que sua coroutine 
 3. Prefira funções `suspend` da biblioteca padrão: elas já cooperam com o cancelamento.
 4. Verifique `isActive` em loops computacionais sem pontos de suspensão.
 
+**Próximo passo:** no arquivo `02_retrofit.md` você vai usar tudo isso na prática — as coroutines serão a base para fazer chamadas de rede sem travar o app, usando `suspend fun` dentro de interfaces do Retrofit.
+
 ---
 
 ## Exercícios Práticos
 
 1. **Dispatchers**:
    - Escreva uma coroutine que usa `withContext(Dispatchers.IO)` para simular uma chamada de rede com `delay(2000)` e, ao terminar, retorna uma string para ser exibida na UI.
+   - **Checkpoint:** antes de rodar, pergunte-se: em qual thread o `delay(2000)` executa? E o código depois do `withContext`, volta para qual thread automaticamente?
 
 2. **Concorrência Estruturada**:
    - Lance duas coroutines em paralelo dentro de um `viewModelScope`: uma que "busca" dados do usuário (delay de 1s) e outra que "busca" dados de posts (delay de 1,5s). Exiba uma mensagem quando ambas terminarem.
    - *Dica*: use `launch` para ambas e `join()` ou use `async/await` para combinar os resultados.
+   - **Checkpoint:** meça quanto tempo total sua função levou. Se dois `launch` rodam em paralelo, o tempo total deve ficar perto de 1,5s (o maior dos dois), não 2,5s (a soma dos dois).
 
 3. **Cancelamento**:
    - Crie um botão "Iniciar" que lança uma coroutine que conta de 1 a 100 com delay de 100ms entre cada número. Crie um botão "Cancelar" que cancela essa coroutine. Verifique que o cancelamento funciona corretamente.
+   - **Checkpoint:** confirme no log que, depois de clicar em "Cancelar", nenhum número novo é impresso. Se a contagem continuar, revise se está usando `delay()` (que já é cancelável) dentro do loop.
 
 4. **Desafio**:
    - Implemente um `ViewModel` com um método `search(query: String)` que:
@@ -182,3 +217,5 @@ Usar a propriedade `isActive` em loops computacionais garante que sua coroutine 
      - Aguarda 500ms após a última chamada antes de executar (debounce).
      - Busca dados de uma fonte simulada (use `delay` + uma lista filtrada).
      - Expõe o resultado via `StateFlow`.
+   - *Dica*: guarde a referência do `Job` atual em uma variável do ViewModel e chame `job?.cancel()` no início de `search()`, antes de lançar um novo `launch`.
+   - **Checkpoint:** digite rapidamente várias letras seguidas (simulando o usuário digitando). Apenas a última busca deve efetivamente retornar um resultado — as anteriores devem ser canceladas.

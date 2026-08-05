@@ -4,6 +4,14 @@ Formulários são a principal forma de coletar dados do usuário em aplicativos 
 
 > **Pré-requisito:** Módulo 2, Aula 01 — MVVM (para gerência de estado com ViewModel) e Módulo 1, Aula 07 — Jetpack Compose (para conceitos de estado e recomposição).
 
+## O que é um formulário "bem construído"?
+
+Um formulário bem construído não é só "campos de texto na tela". Ele precisa: mostrar claramente o que cada campo espera (rótulo), avisar o usuário assim que algo está errado (validação), abrir o teclado certo para cada tipo de dado (numérico, e-mail, senha), e comunicar erros de um jeito que também funcione para quem usa leitor de tela. Nesta aula juntamos tudo isso.
+
+## Por que isso importa
+
+Um formulário mal feito é uma das maiores fontes de frustração em apps: usuário não sabe por que o botão "Enviar" está desabilitado, digita a senha errada sem saber o motivo, ou perde os dados digitados ao girar a tela porque o estado não estava centralizado no ViewModel. Validação clara e estado bem gerenciado evitam que o usuário desista do cadastro no meio do caminho — e evitam bugs difíceis de reproduzir.
+
 ---
 
 ## 1. TextField e OutlinedTextField
@@ -26,11 +34,18 @@ fun CampoNome() {
 }
 ```
 
+**Por que `value` + `onValueChange` juntos?** Esse par forma o que se chama de "campo controlado": o Compose não guarda o texto digitado sozinho — cada tecla digitada dispara `onValueChange`, que você usa para atualizar uma variável de estado (`nome`), e é essa variável que volta a ser mostrada em `value`. Esse ciclo garante que a UI sempre reflita exatamente o estado atual, sem duplicidade de fontes de verdade.
+
+### Erros comuns / Pegadinhas
+
+- **Usar `var nome = ""` (sem `remember`/`mutableStateOf`)**: sem isso, o Compose não sabe que precisa recompor quando `nome` mudar, e o campo parece "travado", sem atualizar o que é exibido.
+- **Esquecer `singleLine = true` em campos de uma linha só**: sem isso, apertar Enter no teclado pode quebrar linha dentro do campo em vez de submeter o formulário.
+
 ---
 
 ## 2. Validação de Entrada
 
-Validar a entrada é essencial para garantir dados corretos. O padrão é criar funções que retornam `String?` — `null` significa campo válido.
+Validar a entrada é essencial para garantir dados corretos. O padrão é criar funções que retornam `String?` (uma `String` que também pode ser `null`) — `null` significa campo válido, e qualquer texto retornado é a mensagem de erro a ser exibida.
 
 ```kotlin
 // Funções auxiliares de validação — retornam mensagem de erro ou null se válido
@@ -54,6 +69,8 @@ fun validarCpf(cpf: String): String? {
 }
 ```
 
+**Por que essas funções não recebem nada do Compose (nenhum `@Composable`, nenhum `Context`)?** Elas são Kotlin puro — recebem uma `String` e devolvem uma `String?`. Isso é proposital: assim dá para testá-las com JUnit comum, sem precisar rodar um emulador Android. É uma boa prática separar regras de negócio (validação) de código de UI.
+
 Para exibir o erro no campo, usamos `isError` e `supportingText`:
 
 ```kotlin
@@ -70,11 +87,17 @@ fun CampoEmail(email: String, erro: String?, onChanged: (String) -> Unit) {
 }
 ```
 
+### Erros comuns / Pegadinhas
+
+- **Validar só no clique do botão "Enviar" e nunca antes**: o usuário só descobre o erro depois de preencher tudo e tentar enviar, o que é frustrante. Prefira limpar o erro assim que o usuário começa a corrigir o campo (como fazemos no ViewModel, seção 3) e, quando fizer sentido, validar também ao sair do campo (`onFocusChanged`).
+- **Misturar a regex de validação direto no Composable**: mantenha funções de validação fora da UI (como no exemplo acima) para poder reutilizá-las e testá-las isoladamente.
+- **Confundir `isError` com desabilitar o campo**: `isError = true` só muda a aparência (cor vermelha) — o campo continua editável, o que é o comportamento correto (o usuário precisa poder corrigir).
+
 ---
 
 ## 3. Estado do Formulário no ViewModel
 
-Centralizar o estado no ViewModel garante que os dados sobrevivam a mudanças de configuração (rotação de tela) e mantém a validação fora da UI.
+Centralizar o estado no `ViewModel` (a classe de lógica de apresentação vista na aula `01_mvvm.md`) garante que os dados sobrevivam a mudanças de configuração (rotação de tela) e mantém a validação fora da UI.
 
 ```kotlin
 // Data class que representa o estado completo do formulário
@@ -89,6 +112,9 @@ data class CadastroUiState(
 )
 
 class CadastroViewModel : ViewModel() {
+    // MutableStateFlow: uma "caixa observável" que guarda o valor atual do
+    // estado e notifica automaticamente a tela sempre que ele muda
+    // (explicado em detalhe na aula 01_mvvm.md).
     private val _uiState = MutableStateFlow(CadastroUiState()) // estado mutável interno
     val uiState: StateFlow<CadastroUiState> = _uiState // estado público imutável
 
@@ -110,6 +136,14 @@ class CadastroViewModel : ViewModel() {
     }
 }
 ```
+
+**O que faz `_uiState.update { ... }`?** É uma forma segura de alterar o valor de um `MutableStateFlow` a partir do valor atual: a função recebe o estado antigo (`it`) e você devolve o novo estado (geralmente com `.copy(...)`, já que `CadastroUiState` é uma `data class` imutável). Isso evita problemas de concorrência que poderiam ocorrer se duas atualizações tentassem escrever `.value` ao mesmo tempo.
+
+### Erros comuns / Pegadinhas
+
+- **Alterar campos individuais do estado em vez de usar `.copy()`**: como `CadastroUiState` é imutável (todos os campos são `val`), você não pode fazer `state.nome = valor`. Sempre crie uma cópia com o campo alterado, como no exemplo.
+- **Esquecer de limpar o erro ao digitar (`erroNome = null` dentro de `onNomeChanged`)**: sem isso, a mensagem de erro fica presa na tela mesmo depois do usuário já ter corrigido o campo, o que é confuso.
+- **Validar campo por campo em funções separadas, sem uma função central (`validarFormulario`)**: isso dificulta garantir que *todos* os campos foram checados antes de enviar o formulário ao servidor.
 
 ---
 
@@ -166,11 +200,18 @@ fun TelaCadastro(viewModel: CadastroViewModel = viewModel()) {
 }
 ```
 
+**Por que `viewModel::onNomeChanged` em vez de `{ viewModel.onNomeChanged(it) }`?** As duas formas fazem a mesma coisa — `::` é uma **referência de função** do Kotlin, uma forma mais curta de dizer "chame esta função passando o argumento recebido". É só um atalho de sintaxe, sem diferença de comportamento aqui.
+
+### Erros comuns / Pegadinhas
+
+- **Esquecer `verticalScroll(rememberScrollState())` em formulários longos**: sem isso, em telas pequenas ou com o teclado aberto, os campos de baixo (e o botão de envio) podem ficar inacessíveis, cortados fora da tela.
+- **Não desabilitar o botão durante o envio (`enabled = !state.enviando`)**: sem isso, o usuário pode clicar em "Cadastrar" várias vezes seguidas, disparando múltiplos envios do mesmo formulário ao servidor.
+
 ---
 
 ## 5. KeyboardOptions e KeyboardActions
 
-`KeyboardOptions` configura o tipo de teclado. `KeyboardActions` define ações ao pressionar Done, Next ou Search. Use `FocusRequester` para navegar entre campos.
+`KeyboardOptions` configura o tipo de teclado que aparece para o usuário (numérico, e-mail, etc). `KeyboardActions` define ações ao pressionar botões especiais do teclado, como "Done" (concluir), "Next" (próximo) ou "Search" (buscar). Use `FocusRequester` — um objeto que permite mover o foco de teclado programaticamente — para navegar entre campos sem o usuário precisar tocar manualmente no próximo campo.
 
 ```kotlin
 @Composable
@@ -206,11 +247,16 @@ fun CamposComNavegacao() {
 
 **Tipos de teclado úteis:** `Email` (com `@`), `Number` (somente números), `Phone` (telefone), `Password` (oculta sugestões).
 
+### Erros comuns / Pegadinhas
+
+- **Deixar o `imeAction` padrão em todos os campos**: sem configurar `ImeAction.Next`/`Done`, o teclado mostra sempre a tecla genérica de quebra de linha, obrigando o usuário a tocar manualmente em cada campo — pior experiência de digitação.
+- **Esquecer `Modifier.focusRequester(focusSenha)` no campo de destino**: sem essa linha, o `FocusRequester` não sabe para qual campo mover o foco, e `requestFocus()` não tem efeito (ou lança erro).
+
 ---
 
 ## 6. Máscara de Entrada
 
-`VisualTransformation` exibe texto formatado sem alterar o valor armazenado. Ideal para CPF, telefone e cartão.
+`VisualTransformation` é uma interface do Compose que exibe o texto **formatado** na tela sem alterar o valor real armazenado no estado. Ideal para CPF, telefone e número de cartão, onde o usuário vê pontos e traços, mas o app guarda só os dígitos.
 
 ```kotlin
 // Máscara de CPF: transforma "12345678900" em "123.456.789-00"
@@ -256,25 +302,48 @@ fun CampoCpf(cpf: String, onChanged: (String) -> Unit) {
 }
 ```
 
+**Por que precisamos de `OffsetMapping`?** Quando o texto exibido (`"123.456.789-00"`) tem caracteres a mais que o texto real (`"12345678900"`), o Compose precisa saber como traduzir a posição do cursor entre os dois formatos — por exemplo, se o cursor está na posição 5 do texto formatado (`"123.4|56..."`), ele precisa saber que isso corresponde à posição 4 do texto original (sem os pontos). O `OffsetMapping` faz essa tradução nos dois sentidos.
+
+### Erros comuns / Pegadinhas
+
+- **Guardar o texto já formatado no estado (`"123.456.789-00"`) em vez de só os dígitos**: isso complica validações e envio ao servidor, que normalmente esperam o CPF "limpo". Sempre guarde o valor cru e use `VisualTransformation` só para exibição.
+- **Esquecer o `.take(11)`**: sem limitar a quantidade de dígitos, o usuário pode digitar mais números do que o CPF permite, e a máscara customizada pode quebrar ou se comportar de forma inesperada.
+
 ---
 
 ## 7. Boas Práticas
 
-- **Debounce em validação:** use `snapshotFlow` com `debounce` para aguardar o usuário parar de digitar antes de validar campos complexos (como verificar e-mail no servidor).
-- **Acessibilidade de erros:** combine `isError` com `supportingText` para que o TalkBack anuncie erros. Use `liveRegion` para erros dinâmicos.
-- **Scrollar para o primeiro erro:** use `BringIntoViewRequester` para levar o usuário ao primeiro campo com erro.
+- **Debounce em validação:** use `snapshotFlow` com `debounce` para aguardar o usuário parar de digitar antes de validar campos complexos (como verificar e-mail no servidor). "Debounce" significa "esperar um tempinho sem novas mudanças antes de agir" — evita disparar uma validação (ou requisição de rede) a cada tecla digitada.
+- **Acessibilidade de erros:** combine `isError` com `supportingText` para que o TalkBack anuncie erros (veja a aula `05_acessibilidade.md`). Use `liveRegion` para erros dinâmicos que aparecem sem o usuário focar no campo.
+- **Scrollar para o primeiro erro:** use `BringIntoViewRequester` para levar o usuário ao primeiro campo com erro, especialmente útil em formulários longos.
 - **Limpar erros ao digitar:** remova a mensagem de erro assim que o usuário começa a corrigir o campo.
 - **Desabilitar botão de envio:** enquanto o formulário estiver enviando, desabilite o botão para evitar envios duplicados.
-- **Testar validações isoladamente:** funções de validação são Kotlin puro — teste com JUnit sem depender do Android.
+- **Testar validações isoladamente:** funções de validação são Kotlin puro — teste com JUnit sem depender do Android (nem de emulador).
+
+---
+
+## Exercícios Práticos
+
+1. **Adicionar validação de CPF ao formulário**
+   - Checkpoint 1: adicione `cpf` e `erroCpf` ao `CadastroUiState`.
+   - Checkpoint 2: crie `onCpfChanged` no `CadastroViewModel`, seguindo o mesmo padrão de `onNomeChanged`.
+   - Checkpoint 3: inclua a validação de CPF (`validarCpf`, já definida na seção 2) dentro de `validarFormulario()`.
+   - Checkpoint 4: adicione o campo `CampoCpf` (seção 6) na `TelaCadastro`.
+
+2. **Confirmar senha**
+   - Adicione um segundo campo "Confirmar senha" e valide que ele é igual ao campo "Senha" — mostre um erro específico ("As senhas não coincidem") se forem diferentes.
+
+3. **Desafio**: implemente debounce na validação de e-mail, simulando uma checagem "no servidor" que só dispara 500ms depois que o usuário parar de digitar. Dica: pesquise sobre `snapshotFlow { state.email }.debounce(500)` dentro de um `LaunchedEffect`.
 
 ---
 
 ## Resumo
 
-`OutlinedTextField`/`TextField` são a base para entrada de texto. `isError` e `supportingText` exibem validação. O ViewModel centraliza estado via `StateFlow<UiState>`. `KeyboardOptions` configura teclado; `KeyboardActions` define ações (Next, Done). `VisualTransformation` formata exibição sem alterar o dado (máscaras). Validações devem ser reativas, acessíveis e testáveis.
+- `TextField`/`OutlinedTextField` são a base para entrada de texto controlada (`value` + `onValueChange`).
+- Funções de validação em Kotlin puro (`String -> String?`) mantêm a lógica testável e fora da UI.
+- `isError` e `supportingText` exibem o erro visualmente e de forma acessível ao TalkBack.
+- O `ViewModel` centraliza o estado do formulário via `StateFlow<UiState>`, sobrevivendo a rotações de tela.
+- `KeyboardOptions` configura o tipo de teclado; `KeyboardActions` define o que acontece ao pressionar Next/Done.
+- `VisualTransformation` formata a exibição (máscaras de CPF, telefone) sem alterar o dado real armazenado.
 
----
-
-## Próximos Passos
-
-Com formulários e validação dominados, você tem as ferramentas para construir qualquer tela de entrada de dados. No **Módulo 3**, veremos como enviar esses dados para um servidor usando **Coroutines** e **Retrofit**, além de persistir informações localmente com **Room**.
+**Próximo passo:** com formulários e validação dominados, você tem as ferramentas para construir qualquer tela de entrada de dados. No **Módulo 3**, veremos como enviar esses dados para um servidor usando **Coroutines** e **Retrofit**, além de persistir informações localmente com **Room**.

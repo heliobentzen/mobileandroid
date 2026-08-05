@@ -265,6 +265,18 @@ Organize por responsabilidade: `NetworkModule` (Retrofit, OkHttp), `DatabaseModu
 
 ---
 
+## Erros Comuns / Pegadinhas
+
+1. **Esquecer `@AndroidEntryPoint` em uma Activity ou Fragment que usa `hiltViewModel()`.** Sem essa anotação, o Hilt não sabe como injetar dependências naquele componente, e o app crasha em tempo de execução com uma mensagem confusa sobre o Hilt não conseguir encontrar o componente esperado. Toda Activity, Fragment ou Service que participa da injeção precisa dessa anotação.
+
+2. **Injetar `Context` diretamente em vez de `@ApplicationContext` ou `@ActivityContext`.** O Hilt não sabe, sozinho, qual `Context` você quer (o do app inteiro ou o de uma tela específica). Guardar o `Context` errado por tempo demais (por exemplo, o de uma Activity dentro de uma classe `@Singleton`) causa vazamento de memória, porque a Activity nunca pode ser liberada enquanto o objeto singleton existir. Use sempre `@ApplicationContext` para dependências de longa duração.
+
+3. **Esquecer `@InstallIn` em um `@Module`.** Todo módulo precisa declarar em qual componente ele vive (`SingletonComponent::class`, `ViewModelComponent::class`, etc.) — sem isso, o código nem compila. Essa anotação define, na prática, o tempo de vida das dependências fornecidas por aquele módulo.
+
+4. **Usar `@Provides` quando `@Binds` seria mais simples.** Como vimos na seção 8, `@Binds` é a forma correta e mais eficiente de dizer "quando alguém pedir esta interface, entregue esta implementação" — evita a criação de uma função extra e é mais eficiente. Reserve `@Provides` para quando você realmente precisa *construir* algo (como o Retrofit ou o Room), não apenas apontar para uma implementação já existente.
+
+---
+
 ## 9. Resumo
 
 | Conceito | Para que serve |

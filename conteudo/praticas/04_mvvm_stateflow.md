@@ -33,6 +33,8 @@ dependencies {
 ### Objetivo
 Mover o estado de um contador para um `ViewModel` usando `StateFlow`.
 
+Este é o exemplo mais simples possível de MVVM, mas nele já aparecem as duas peças centrais que você vai usar em praticamente todo app: um `ViewModel` guardando o estado, e a tela apenas observando e reagindo a esse estado. Dominar esse fluxo básico com um contador facilita muito entender casos mais complexos depois, como listas de tarefas ou dados vindos de uma API.
+
 ### Passo a Passo
 
 **1. Crie o ViewModel** (`ContadorViewModel.kt`):
@@ -130,11 +132,16 @@ class MainActivity : ComponentActivity() {
 - Se o usuário girar a tela, o `ViewModel` sobrevive e o contador **não é perdido**.
 - A lógica de negócio (incrementar, decrementar) está isolada da UI — fácil de testar.
 
+> **💡 Por trás dos panos**
+> O `ViewModel` sobrevive a mudanças de configuração (como girar a tela) porque o Android o mantém vivo separadamente da Activity/Composable que o usa — apenas a interface é recriada, não o `ViewModel`. É por isso que o contador não zera ao girar a tela: o estado mora no `ViewModel`, não na UI. Já o `MutableStateFlow` funciona como uma "caixa" que guarda o valor atual e avisa automaticamente todo mundo que está observando (`collectAsStateWithLifecycle`) sempre que o valor muda — não é preciso "empurrar" a atualização manualmente para a tela.
+
 ### Exercícios
 
 1. Adicione um estado `historico: List<String>` ao ViewModel que registra cada operação (`"+1"`, `"-1"`, `"reset"`). Exiba o histórico abaixo do contador na tela.
+   - *Dica se travar*: você vai precisar de dois `MutableStateFlow` no ViewModel (um para o contador, outro para o histórico) ou combinar os dois em uma única data class de estado.
 2. Adicione um limite máximo configurável ao contador (ex.: não pode passar de 100). Mostre uma mensagem de aviso quando o limite for atingido.
 3. Adicione um campo de texto na tela para que o usuário defina o valor inicial do contador.
+   - *Dica se travar*: use `remember { mutableStateOf("") }` para o campo de texto local (isso não precisa ir no ViewModel) e só chame um método do ViewModel quando o usuário confirmar o valor.
 
 ---
 
@@ -142,6 +149,8 @@ class MainActivity : ComponentActivity() {
 
 ### Objetivo
 Criar um app de lista de tarefas usando o padrão MVVM completo.
+
+Diferente do contador (que tinha um único valor), aqui o estado da tela é um objeto mais complexo — uma lista de tarefas, um texto sendo digitado, uma mensagem de erro. É exatamente esse tipo de cenário que você vai encontrar no dia a dia: quase toda tela real precisa representar vários pedaços de informação ao mesmo tempo. Essa prática ensina o padrão de agrupar tudo isso em uma única `data class` de estado (`TarefaUiState`), que é como profissionais estruturam telas Compose no mundo real.
 
 ### Passo a Passo
 
@@ -321,11 +330,19 @@ fun TarefaScreen(viewModel: TarefaViewModel = viewModel()) {
 }
 ```
 
+> **💡 Por trás dos panos**
+> Repare que `_uiState.update { it.copy(...) }` aparece em quase todas as funções do ViewModel. Esse é o padrão recomendado para atualizar `StateFlow`: em vez de modificar o estado atual diretamente, você pede uma **cópia** com os campos alterados (lembra do `copy()` das data classes?) e substitui o estado inteiro por essa cópia. Isso evita bugs de concorrência (duas coroutines tentando alterar o mesmo objeto ao mesmo tempo) e mantém o fluxo de dados previsível: sempre um novo objeto de estado "de cada vez", nunca uma mutação escondida no meio do código.
+
 ### Exercícios
 
-1. Adicione um filtro com três abas: **Todas**, **Pendentes** e **Concluídas**. A aba selecionada deve filtrar a lista exibida. Dica: adicione um campo `filtro: String` ao `TarefaUiState`.
+1. Adicione um filtro com três abas: **Todas**, **Pendentes** e **Concluídas**. A aba selecionada deve filtrar a lista exibida.
+   - Primeiro, adicione um campo `filtro: String` ao `TarefaUiState` (valor padrão `"Todas"`).
+   - Depois, crie uma função `selecionarFiltro(filtro: String)` no ViewModel que atualiza esse campo.
+   - Por fim, na tela, aplique `.filter { ... }` sobre `uiState.tarefas` de acordo com o filtro antes de passar para o `LazyColumn`.
+   - *Dica se travar*: comece exibindo as três abas fixas na tela (sem lógica) e só depois conecte o clique de cada uma à função do ViewModel.
 2. Adicione um campo de texto para pesquisa. Filtre a lista em tempo real conforme o usuário digita.
 3. Adicione um botão `"Remover todas as concluídas"` que remove de uma vez todas as tarefas marcadas.
+   - *Dica se travar*: `tarefas.filterNot { it.concluida }` gera a nova lista sem as tarefas concluídas — use dentro do `_uiState.update { ... }`.
 
 ---
 
@@ -333,6 +350,8 @@ fun TarefaScreen(viewModel: TarefaViewModel = viewModel()) {
 
 ### Objetivo
 Simular o carregamento de dados de uma "rede" e gerenciar os estados Loading, Success e Error.
+
+Toda vez que seu app busca algo da internet, existe um período de espera — e as coisas podem dar errado (sem conexão, servidor fora do ar, etc.). Se a tela não trata esses três estados (carregando, sucesso, erro), o usuário fica olhando para uma tela em branco ou travada sem entender o que está acontecendo. Esse padrão de "estado selado" (`sealed interface`) com `Loading`/`Success`/`Error` é praticamente universal em apps Android profissionais — você vai reutilizá-lo o tempo todo, inclusive nos próximos guias de Retrofit e Room.
 
 ### Passo a Passo
 
@@ -465,10 +484,17 @@ fun QuoteScreen(viewModel: QuoteViewModel = viewModel()) {
 }
 ```
 
+> **💡 Por trás dos panos**
+> `sealed interface QuoteUiState` garante que o `when (val state = uiState)` na tela **precise** tratar todos os casos possíveis (`Loading`, `Success`, `Error`) — se você esquecer um caso, o compilador avisa. Isso é diferente de usar variáveis booleanas soltas como `isLoading` e `hasError`, onde é fácil deixar combinações inválidas passarem despercebidas (por exemplo, `isLoading = true` e `hasError = true` ao mesmo tempo, o que não faz sentido). Com um estado selado, só existe um estado "verdadeiro" por vez — a tela nunca fica em uma combinação impossível.
+
 ### Exercícios
 
 1. Adicione um estado `Empty` ao `QuoteUiState` para quando o repositório retornar uma lista vazia. Adapte o repositório para simular essa situação.
+   - *Dica se travar*: `Empty` pode ser um `data object`, igual a `Loading` — não precisa carregar nenhum dado extra.
 2. Adicione um botão `"Favoritar"` na tela de sucesso. Mantenha no ViewModel uma lista de frases favoritas e crie uma segunda tela que exibe essa lista.
+   - Primeiro, adicione um `MutableStateFlow<List<Pair<String, String>>>` de favoritos no ViewModel.
+   - Depois, crie a função `favoritar()` que adiciona a frase atual a essa lista.
+   - Por fim, crie um novo composable `FavoritosScreen` que recebe a lista e a exibe em uma `Column` ou `LazyColumn`.
 3. Adicione um contador de "frases buscadas" ao ViewModel e exiba no canto superior da tela.
 
 ---
