@@ -235,11 +235,16 @@ fun PiadaScreen(viewModel: PiadaViewModel = viewModel()) {
 }
 ```
 
+> **💡 Por trás dos panos**
+> Repare que `PiadaService` é apenas uma `interface` — não existe uma implementação escrita à mão em nenhum lugar. O Retrofit lê as anotações (`@GET`, `@Path`, etc.) e **gera** a implementação real automaticamente, em tempo de execução, quando você chama `retrofit.create(PiadaService::class.java)`. Isso é possível porque as funções são `suspend`: o Retrofit sabe que pode fazer a chamada de rede em background e "pausar" a coroutine até a resposta chegar, sem travar a UI — o mesmo mecanismo de suspensão que você viu no guia de coroutines.
+
 ### Exercícios
 
 1. Adicione um histórico das últimas 5 piadas buscadas, exibido como uma lista abaixo do card principal.
+   - *Dica se travar*: guarde uma `List<Piada>` no ViewModel e adicione a nova piada a cada busca bem-sucedida, usando `.take(5)` para manter só as 5 mais recentes.
 2. Adicione um botão "Compartilhar" que abre o seletor de compartilhamento do Android com o texto da piada.
 3. Modifique o ViewModel para buscar as dez piadas de uma vez (`service.buscarDezPiadas()`) e navegar entre elas localmente (sem nova chamada de rede a cada piada).
+   - *Dica se travar*: guarde a lista completa e um índice atual no ViewModel; o botão "Próxima piada" só precisa incrementar o índice, sem chamar a API de novo.
 
 ---
 
@@ -247,6 +252,8 @@ fun PiadaScreen(viewModel: PiadaViewModel = viewModel()) {
 
 ### Objetivo
 Buscar e exibir uma lista de dados da API pública JSONPlaceholder.
+
+Esta prática introduz um padrão muito usado em apps profissionais: separar o **DTO** (o formato exato que a API devolve) do **modelo de domínio** (o formato que sua tela realmente usa). Isso parece um passo extra desnecessário no começo, mas evita dor de cabeça depois — se a API mudar um nome de campo, você só ajusta em um lugar (a conversão), sem precisar mexer em toda a tela.
 
 **API usada**: [JSONPlaceholder](https://jsonplaceholder.typicode.com/) (sem chave)
 
@@ -418,11 +425,17 @@ fun PostListScreen(
 }
 ```
 
+> **💡 Por trás dos panos**
+> A função `fun PostDto.toDomain() = Post(...)` é uma **extension function**: ela "adiciona" um método novo (`toDomain()`) a uma classe que você não escreveu do zero para esse fim, sem precisar herdar dela ou modificá-la. É um recurso muito usado no Kotlin para manter conversões organizadas perto de onde fazem sentido, sem poluir a classe original com lógica que só interessa a uma camada específica do app.
+
 ### Exercícios
 
 1. Adicione uma barra de pesquisa que filtra os posts pelo título em tempo real (sem nova chamada de rede).
+   - *Dica se travar*: filtre sobre a lista já carregada em `state.posts` — não é preciso chamar a API de novo a cada letra digitada.
 2. Implemente uma tela de detalhe: ao clicar em um post, navegue para uma nova tela que exibe o título e o corpo completo.
+   - *Dica se travar*: reveja o guia `01_compose_navigation.md` para relembrar como passar dados entre telas usando o `NavHost`.
 3. Adicione paginação manual: exiba os 10 primeiros posts e um botão "Carregar mais" que adiciona os próximos 10.
+   - *Dica se travar*: guarde quantos posts já estão visíveis em um estado (`var quantidadeVisivel by remember { mutableStateOf(10) }`) e use `posts.take(quantidadeVisivel)` para exibir só uma parte da lista.
 
 ---
 
@@ -430,6 +443,10 @@ fun PostListScreen(
 
 ### Objetivo
 Tratar os diferentes tipos de erro que podem acontecer em chamadas de rede.
+
+No mundo real, chamadas de rede falham o tempo todo: o usuário está sem internet, o servidor está fora do ar, a resposta veio corrompida. Um app que só mostra "Ocorreu um erro" genérico frustra o usuário, que não sabe se deve tentar de novo, verificar sua conexão ou simplesmente esperar. Diferenciar os tipos de erro (rede, servidor, dados) permite mostrar mensagens úteis e até ações específicas, como um botão "Tentar novamente" só quando faz sentido.
+
+### Passo a Passo
 
 ```kotlin
 import retrofit2.HttpException
@@ -462,11 +479,16 @@ suspend fun buscarComTratamento(service: PiadaService): Result<Piada> {
 }
 ```
 
+> **💡 Por trás dos panos**
+> `Result<T>` é um tipo do próprio Kotlin que representa "ou deu certo, ou deu errado" sem precisar lançar uma exceção para cima na pilha de chamadas. `Result.success(piada)` guarda o valor de sucesso; `Result.failure(erro)` guarda o erro. Quem recebe o `Result` decide o que fazer — mostrar o dado, ou tratar o erro — sem precisar de um `try/catch` extra. É uma alternativa mais explícita a deixar exceções "vazarem" silenciosamente pela aplicação, o que facilita bastante saber, só olhando a assinatura da função, que ela pode falhar.
+
 ### Exercícios
 
 1. Modifique o `PiadaViewModel` para usar a função `buscarComTratamento` e exibir mensagens de erro específicas na tela.
+   - *Dica se travar*: `Result` tem os métodos `.onSuccess { }` e `.onFailure { }` para tratar cada caso separadamente, sem precisar de `try/catch` no ViewModel.
 2. Adicione um indicador visual diferente para cada tipo de erro (sem internet vs. erro do servidor).
 3. Implemente um mecanismo de retry com backoff: na primeira falha, tente novamente após 1s; na segunda, após 2s; na terceira, desista e exiba o erro. Use `delay` e um loop `repeat`.
+   - *Dica se travar*: comece com um `repeat(3) { tentativa -> ... }` simples (sem o delay crescente) para garantir que o retry básico funciona, e só depois adicione `delay(1000L * (tentativa + 1))`.
 
 ---
 

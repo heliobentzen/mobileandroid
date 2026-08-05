@@ -62,6 +62,8 @@ dependencies {
 
 Configurar o Hilt no projeto e injetar um repositório simples no ViewModel.
 
+Conforme um app cresce, criar objetos manualmente (`val repo = Repository(Api(), Database())`) vira um problema: cada tela precisa saber montar todas as dependências de tudo que usa, e trocar uma implementação (por exemplo, para testes) exige mexer em vários lugares. Injeção de dependência resolve isso invertendo o controle: você declara "eu preciso de um `Repository`" e o Hilt entrega uma instância pronta, sabendo montar toda a cadeia de dependências por trás dela. Esse é o padrão usado em praticamente todo app Android profissional de porte médio para cima.
+
 ### Passo a Passo
 
 **1. Application com Hilt** (`MeuApp.kt`):
@@ -186,10 +188,15 @@ fun SaudacaoScreen(
 }
 ```
 
+> **💡 Por trás dos panos**
+> Quando você marca `SaudacaoRepository` com `@Inject constructor()`, está ensinando o Hilt a criar essa classe sozinho, sem precisar de um `@Module` explícito — o Hilt só olha para o construtor e resolve o que ele precisa recursivamente. Já o `@HiltViewModel` + `hiltViewModel()` conectam esse mecanismo ao ciclo de vida do Android: o Hilt cria o `SaudacaoViewModel` (e injeta o `SaudacaoRepository` dentro dele) automaticamente na primeira vez que a tela pede por ele, e reaproveita a mesma instância enquanto a tela estiver viva — sem você escrever nenhum código de "fábrica" manual.
+
 ### Exercícios
 
 1. Adicione um contador que exiba quantas saudações já foram geradas desde que o app abriu.
+   - *Dica se travar*: adicione uma variável mutável no ViewModel (ou outro `MutableStateFlow<Int>`) que incrementa a cada chamada de `novaSaudacao()`.
 2. Crie um segundo repositório (`FraseMotivacionalRepository`) e injete ambos no ViewModel, alternando entre saudações e frases motivacionais.
+   - *Dica se travar*: basta adicionar um segundo parâmetro ao construtor do ViewModel (`private val fraseRepository: FraseMotivacionalRepository`) — o Hilt já resolve as duas dependências automaticamente.
 
 ---
 
@@ -198,6 +205,8 @@ fun SaudacaoScreen(
 ### Objetivo
 
 Criar módulos Hilt que fornecem instâncias de Retrofit e Room usando `@Module`, `@Provides` e `@Singleton`.
+
+O Hilt consegue criar sozinho classes que você mesmo escreveu (usando `@Inject constructor`), mas não sabe como montar classes de bibliotecas externas, como `Retrofit` ou `RoomDatabase` — elas não têm um construtor simples que o Hilt possa simplesmente chamar. Para esses casos, você usa um `@Module`: um "manual de instruções" que ensina o Hilt a construir esse tipo de objeto. Esse é um dos usos mais comuns do Hilt no dia a dia, porque toda vez que seu app usa Retrofit, Room ou qualquer outra biblioteca configurável, você vai precisar desse padrão.
 
 ### Passo a Passo
 
@@ -343,11 +352,16 @@ object DatabaseModule {
 }
 ```
 
+> **💡 Por trás dos panos**
+> `@Provides` funciona como uma "receita": toda vez que alguém no app precisar de um `Retrofit`, o Hilt executa a função `provideRetrofit()` para gerar essa instância. O `@Singleton` altera esse comportamento — em vez de rodar a receita toda vez, o Hilt executa uma única vez e guarda o resultado, entregando a mesma instância para todo mundo que pedir depois. Isso é importante para objetos "caros" de criar (como uma conexão de banco de dados) ou que precisam manter estado compartilhado (como um cache de rede) — recriá-los a cada uso desperdiçaria recursos.
+
 ### Exercícios
 
 1. Adicione um `OkHttpClient` com `HttpLoggingInterceptor` ao módulo de rede para exibir logs das requisições no Logcat.
+   - *Dica se travar*: crie um método `@Provides @Singleton fun provideOkHttpClient(): OkHttpClient` que retorna o client com o interceptor, e passe-o para o `Retrofit.Builder().client(okHttpClient)`.
 2. Crie um `@Qualifier` customizado para diferenciar duas URLs base diferentes (por exemplo, `@BaseUrl` e `@AuthUrl`), cada uma com sua própria instância de Retrofit.
 3. Mude o escopo do `TarefaDao` para `@Singleton` e observe se o comportamento muda. Reflita sobre quando usar ou não `@Singleton`.
+   - *Dica se travar*: como o `TarefaDao` já vem de um `AppDatabase` que é `@Singleton`, marcar o DAO também como `@Singleton` normalmente não muda nada na prática — pense em por que isso acontece.
 
 ---
 
@@ -356,6 +370,8 @@ object DatabaseModule {
 ### Objetivo
 
 Construir um app funcional de lista de tarefas que busca dados da API, salva no banco local e exibe na tela usando Compose — tudo conectado pelo Hilt.
+
+Este exercício junta tudo que você viu nos guias anteriores — Retrofit, Room, MVVM, coroutines — e mostra como o Hilt amarra as peças sem que você precise "encanar" manualmente cada dependência em cada tela. É um retrato bem próximo de como um app Android profissional real é estruturado: camadas bem definidas (API, banco, repositório, ViewModel, UI), cada uma dependendo apenas da anterior, e o Hilt cuidando de toda a fiação por trás das cenas.
 
 ### Passo a Passo
 
@@ -583,11 +599,16 @@ fun TarefaItem(
 }
 ```
 
+> **💡 Por trás dos panos**
+> Repare na cadeia de dependências: `TarefaViewModel` depende de `TarefaRepository`, que depende de `TarefaApi` e `TarefaDao`, que por sua vez dependem de `Retrofit` e `AppDatabase`. Você nunca escreveu o código que monta essa cadeia inteira — só anotou cada peça com `@Inject` ou `@Provides`, e o Hilt resolveu a ordem certa de criação sozinho (chamado de "grafo de dependências"). Essa é a maior vantagem prática da injeção de dependência: trocar uma peça (por exemplo, usar um repositório falso em testes) não exige mexer em nenhuma das outras camadas.
+
 ### Exercícios
 
 1. Adicione um campo de texto e um botão para criar novas tarefas localmente (sem enviar para a API).
+   - *Dica se travar*: crie uma função `criarTarefaLocal(titulo: String)` no repositório que insere direto no `dao`, sem passar pela `api`.
 2. Implemente a funcionalidade de excluir uma tarefa com gesto de deslizar (swipe-to-delete).
 3. Adicione um filtro com chips (`FilterChip`) para exibir "Todas", "Pendentes" ou "Concluídas".
+   - *Dica se travar*: reaproveite a lógica de filtro que você já praticou no guia `04_mvvm_stateflow.md` (Prática 2, exercício 1) — o padrão é o mesmo.
 
 ---
 

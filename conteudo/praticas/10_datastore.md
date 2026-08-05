@@ -40,6 +40,8 @@ dependencies {
 ### Objetivo
 Criar um DataStore simples para salvar e ler o nome do usuário e a preferência de tema escuro.
 
+Toda vez que um app "lembra" de uma escolha do usuário — um tema, um idioma, se o tutorial já foi visto — algum tipo de armazenamento local de preferências está por trás disso. O DataStore é a ferramenta oficial recomendada pelo Google para esse tipo de dado simples, pequeno e que precisa sobreviver entre uma sessão de uso e outra. Sem ele, o app "esqueceria" tudo toda vez que fosse fechado, obrigando o usuário a reconfigurar tudo de novo.
+
 ### Passo a Passo
 
 **1. Criando o DataStore** (`PreferenciasManager.kt`):

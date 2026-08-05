@@ -1,6 +1,6 @@
 # Kotlin Intermediário para Android
 
-Conceitos de Kotlin essenciais para o Módulo 2 (MVVM, StateFlow, listas). Ferramentas da linguagem que tornam o código Android mais expressivo, seguro e conciso.
+Este arquivo cobre conceitos de Kotlin essenciais para o Módulo 2 (MVVM, StateFlow, listas): ferramentas da linguagem que tornam o código Android mais expressivo, seguro e conciso. Você já viu o básico de Kotlin no arquivo 02 — aqui vamos avançar um pouco mais, sempre explicando o "porquê" de cada recurso antes de usá-lo.
 
 > **Pré-requisito:** leia [02 – Kotlin Essencial](02_kotlin_essencial.md) antes. Espera-se familiaridade com tipos, null safety, data classes e lambdas.
 
@@ -8,7 +8,9 @@ Conceitos de Kotlin essenciais para o Módulo 2 (MVVM, StateFlow, listas). Ferra
 
 ## 1. Scope Functions (let, run, with, apply, also)
 
-Scope functions executam um bloco no contexto de um objeto. A diferença está em **como acessar o objeto** (`this` ou `it`) e **o que retornam**.
+**O que é.** As **scope functions** ("funções de escopo") são um conjunto de cinco funções da biblioteca padrão do Kotlin (`let`, `run`, `with`, `apply`, `also`) que executam um bloco de código no **contexto de um objeto** — ou seja, dentro do bloco, você tem acesso direto às propriedades e métodos daquele objeto, sem precisar repetir o nome dele a cada linha.
+
+**Por que isso importa.** Sem scope functions, código que configura um objeto ou faz uma checagem de nulo com transformação fica mais verboso e repetitivo — você precisaria repetir o nome da variável várias vezes, ou usar blocos `if` mais longos. As scope functions deixam esse tipo de código mais curto e legível, desde que você saiba escolher a função certa. A diferença entre as cinco está em **como acessar o objeto** (`this` ou `it`) e **o que a função retorna** (o resultado do bloco, ou o próprio objeto).
 
 ```kotlin
 // -- let: acessa via 'it', retorna resultado do bloco --
@@ -53,11 +55,21 @@ val lista = mutableListOf("A", "B").also {
 | `apply` | `this` | objeto | Configurar objeto (Builder pattern) |
 | `also` | `it` | objeto | Efeitos colaterais (log, debug) |
 
+> **Dica para memorizar:** as que terminam em "**et**"/"**un**" (let, run) retornam o resultado do bloco. As que "**aplicam**"/"**também fazem**" algo no objeto (apply, also) retornam o próprio objeto. `with` é a exceção — não é chamada como método (`objeto.with { }`), e sim como função (`with(objeto) { }`).
+
+### Erros comuns / Pegadinhas
+
+- **Usar `apply` quando você queria o resultado do bloco**: como `apply` sempre retorna o próprio objeto, se você esperava o último valor calculado no bloco, o resultado vai ser diferente do esperado. Troque para `run` ou `let` nesse caso.
+- **Encadear scope functions demais**: `a.let { }.also { }.run { }` em sequência fica difícil de ler. Use no máximo uma ou duas por expressão.
+- **Usar `let` só para "envolver" código sem necessidade real de checagem de nulo**: se não há um `?.` antes do `let`, considere se uma variável comum não seria mais clara.
+
 ---
 
 ## 2. Sealed Classes e Sealed Interfaces
 
-Sealed classes/interfaces restringem a hierarquia a subtipos finitos. O compilador garante que `when` cubra todos os casos — ideal para **estados de UI**.
+**O que é.** Você já viu sealed classes no arquivo 02 — aqui vamos revisar e aprofundar. Sealed classes/interfaces restringem a hierarquia de subtipos a um conjunto **finito e conhecido**. Isso é diferente de uma classe aberta (`open class`), que qualquer código, em qualquer lugar, poderia estender.
+
+**Por que isso importa.** Essa restrição é o que permite ao compilador garantir que um `when` cubra **todos** os casos possíveis, sem precisar de um `else` — ideal para modelar **estados de UI**, onde você quer ter certeza absoluta de que tratou toda possibilidade (carregando, sucesso, erro), sem esquecer nenhuma.
 
 ```kotlin
 // Modela os estados possíveis de uma tela de listagem
@@ -75,7 +87,7 @@ fun renderizar(estado: UiState) = when (estado) {
 }
 ```
 
-**Sealed interface** funciona da mesma forma, mas permite que subtipos herdem de outras classes:
+**Sealed interface** funciona da mesma forma, mas permite que os subtipos herdem de outras classes ao mesmo tempo (uma classe em Kotlin só pode herdar de uma classe, mas pode implementar várias interfaces):
 
 ```kotlin
 sealed interface Resultado   // interface selada
@@ -83,13 +95,20 @@ data class Ok(val dado: String) : Resultado  // pode herdar de outra classe tamb
 data class Falha(val erro: Throwable) : Resultado
 ```
 
-> No Módulo 2 você usará `sealed interface UiState` para controlar o estado das telas com MVVM.
+> No Módulo 2 você usará `sealed interface UiState` para controlar o estado das telas com MVVM (Model-View-ViewModel, o padrão de arquitetura que você vai estudar em detalhe lá).
+
+### Erros comuns / Pegadinhas
+
+- **Adicionar `else ->` em um `when` de sealed class "por hábito"**: isso anula a principal vantagem — o compilador para de te avisar quando um novo subtipo é adicionado e não tratado em algum lugar do código.
+- **Usar `class` normal em vez de `sealed class` para modelar estados**: sem o "selo", o compilador não consegue garantir cobertura completa no `when`, e um novo estado adicionado no futuro pode passar despercebido em algum lugar do código que deveria tratá-lo.
 
 ---
 
 ## 3. Extension Functions
 
-Extensões adicionam comportamento a classes existentes **sem modificá-las**. Muito comuns em projetos Android.
+**O que é.** Você viu o básico de extension functions no arquivo 02 — funções que adicionam comportamento a classes existentes **sem modificá-las** (sem precisar herdar ou alterar o código-fonte original). Muito comuns em projetos Android para "turbinar" classes do próprio sistema.
+
+**Por que isso importa.** Sem extensões, você precisaria de funções utilitárias soltas (como `fun formatarComoReais(centavos: Int): String`), que exigem passar o objeto como argumento em vez de chamar como método — menos legível e menos natural de encadear com outras chamadas.
 
 ```kotlin
 // Extensão para formatar centavos como moeda brasileira
@@ -109,11 +128,18 @@ fun Int.dpToPx(context: Context): Int {
 }
 ```
 
+### Erros comuns / Pegadinhas
+
+- **Esperar polimorfismo dinâmico de uma extensão**: como você viu no arquivo 02, extensões são resolvidas em tempo de compilação com base no tipo declarado da variável, não no tipo real do objeto. Se você precisa de comportamento diferente por subtipo, use um método real dentro da classe.
+- **Criar extensões que fazem sentido só em um lugar específico, mas colocá-las em um arquivo genérico**: isso polui o autocomplete em todo o projeto. Mantenha extensões organizadas por contexto de uso.
+
 ---
 
 ## 4. Generics Básicos
 
-Generics permitem criar classes e funções que operam sobre **qualquer tipo**, com segurança.
+**O que é.** **Generics** ("genéricos") permitem criar classes e funções que operam sobre **qualquer tipo**, mantendo a segurança de tipos do compilador — ou seja, o compilador continua verificando que você está usando os tipos corretos, mesmo sem saber de antemão qual tipo específico será usado.
+
+**Por que isso importa.** Sem generics, você precisaria criar uma classe separada para cada tipo de dado (`RespostaString`, `RespostaInt`, `RespostaUsuario`...) ou usar um tipo genérico demais como `Any` (que aceita qualquer coisa, mas perde a segurança de tipo — você só descobriria um erro de tipo em tempo de execução, não em compilação). Generics resolvem isso com uma única classe reutilizável e segura.
 
 ```kotlin
 // Classe genérica que encapsula um resultado de rede
@@ -127,22 +153,32 @@ val respostaIdade = Resposta(dados = 25)       // T = Int
 
 // Função genérica com restrição (upper bound)
 fun <T : Comparable<T>> maiorEntre(a: T, b: T): T {
+    // '<T : Comparable<T>>' restringe T a tipos que sabem se comparar entre si
+    // (como Int, String) — sem essa restrição, "a > b" não compilaria,
+    // pois nem todo tipo genérico suporta comparação.
     return if (a > b) a else b // funciona com qualquer Comparable
 }
 ```
 
-**Covariância (`out`) e contravariância (`in`):**
+**Covariância (`out`) e contravariância (`in`):** estes são conceitos mais avançados — não se preocupe em dominá-los agora, apenas reconheça os termos:
 
 ```kotlin
 interface Fonte<out T> { fun proximo(): T }   // 'out' — só produz T (leitura)
 interface Destino<in T> { fun enviar(item: T) } // 'in' — só consome T (escrita)
 ```
 
+### Erros comuns / Pegadinhas
+
+- **Usar `Any` em vez de generics quando o tipo real é conhecido em tempo de compilação**: você perde a verificação de tipo do compilador e precisa fazer casts manuais (`as String`), que podem falhar em tempo de execução.
+- **Esquecer a restrição (`<T : Comparable<T>>`) quando a função precisa de um comportamento específico do tipo**: sem a restrição, o compilador não permite chamar métodos que não existem em todo tipo genérico.
+
 ---
 
 ## 5. Enum Classes
 
-Enums representam um conjunto fixo de **valores constantes**, sem dados variáveis por instância.
+**O que é.** Uma **enum class** representa um conjunto fixo e conhecido de **valores constantes** — diferente de sealed class, os valores de um enum **não carregam dados diferentes por instância** (todos os valores do enum têm exatamente a mesma "forma").
+
+**Por que isso importa.** Enums são ideais quando você só precisa de rótulos fixos (como estados simples de conexão), evitando o uso de strings ou números "soltos" no código (por exemplo, usar `"CONECTADO"` como string em vários lugares, correndo o risco de erro de digitação em algum deles).
 
 ```kotlin
 // Enum para status de conexão de rede
@@ -170,11 +206,18 @@ fun iconeParaStatus(status: StatusRede): Int = when (status) {
 
 Regra prática: se cada caso precisa de **propriedades diferentes**, use sealed class. Se são apenas **rótulos constantes**, use enum.
 
+### Erros comuns / Pegadinhas
+
+- **Usar enum quando cada estado precisaria de dados próprios**: por exemplo, tentar forçar uma mensagem de erro variável dentro de um enum `Erro` — isso não é possível de forma natural com enums simples; use sealed class nesse caso.
+- **Depender de `ordinal` (a posição do valor no enum) para lógica importante**: se a ordem dos valores mudar no código (alguém reorganiza o enum), o `ordinal` muda junto, quebrando qualquer lógica que dependia dele silenciosamente.
+
 ---
 
 ## 6. Object e Companion Object
 
-`object` cria um **singleton** — uma única instância garantida pela linguagem. `companion object` simula membros "estáticos" dentro de uma classe.
+**O que é.** Você viu `object` (singleton) no arquivo 02. Aqui, o complemento: `companion object` é um bloco especial dentro de uma classe que simula membros "estáticos" — ou seja, acessíveis diretamente pelo nome da classe, sem precisar criar uma instância dela.
+
+**Por que isso importa.** Diferente de Java, Kotlin não tem a palavra-chave `static`. `companion object` é a forma idiomática de ter, por exemplo, um método de fábrica (factory method) que cria instâncias de uma classe de um jeito customizado, ou constantes ligadas a uma classe específica.
 
 ```kotlin
 // Singleton para constantes de navegação
@@ -200,11 +243,18 @@ class Usuario(val nome: String, val email: String) {
 val user = Usuario.deMap(mapOf("nome" to "Ana", "email" to "ana@mail.com"))
 ```
 
+### Erros comuns / Pegadinhas
+
+- **Confundir `object` (singleton independente) com `companion object` (bloco dentro de uma classe)**: são conceitos relacionados, mas `object Rotas { }` cria uma classe/instância nova; `companion object { }` vive dentro de outra classe.
+- **Abusar de `companion object` para guardar estado mutável compartilhado**: como qualquer parte do código pode acessar e modificar esse estado, isso pode gerar bugs difíceis de rastrear em apps maiores. Prefira injeção de dependência (você vai ver isso em módulos futuros, com Hilt).
+
 ---
 
 ## 7. Operadores de Coleção
 
-Operações funcionais em listas são fundamentais para manipular dados de APIs e repositórios.
+**O que é.** Você já viu `map` e `filter` no arquivo 02 — aqui vamos expandir o vocabulário de operações funcionais em listas, fundamentais para transformar dados vindos de APIs e repositórios em algo que a UI possa exibir.
+
+**Por que isso importa.** Sem essas operações, transformar e filtrar listas exigiria loops manuais (`for`) com variáveis mutáveis acumulando resultado — mais código, mais chance de erro, e menos legível do que uma cadeia de operações que descreve claramente a intenção.
 
 ```kotlin
 data class Tarefa(
@@ -239,7 +289,7 @@ val resumo = tarefas.fold("") { acc, tarefa ->
 val ordenadas = tarefas.sortedBy { it.prioridade } // prioridade 1 primeiro
 ```
 
-Encadeamento é comum e legível:
+Encadeamento é comum e legível — cada linha lê quase como uma frase em português:
 
 ```kotlin
 // Títulos de tarefas pendentes de alta prioridade, em ordem alfabética
@@ -249,6 +299,11 @@ val resultado = tarefas
     .map { it.titulo }               // extrai títulos
     .sorted()                        // ordena A-Z
 ```
+
+### Erros comuns / Pegadinhas
+
+- **Encadear muitos `filter`/`map` em listas muito grandes sem pensar em performance**: cada etapa cria uma lista intermediária nova. Para listas pequenas (dezenas/centenas de itens, comum em telas de app) isso não é problema; para milhares de itens, considere `asSequence()` (visto no arquivo 02).
+- **Confundir `fold` com `reduce`**: `fold` recebe um valor inicial explícito (funciona mesmo com lista vazia); `reduce` usa o primeiro elemento da lista como inicial (lança exceção se a lista estiver vazia).
 
 ---
 
@@ -269,14 +324,24 @@ val resultado = tarefas
 | `groupBy` | Agrupar itens | `lista.groupBy { it.campo }` |
 | `fold` | Acumular valor | `lista.fold(0) { acc, x -> ... }` |
 
----
+## Resumo dos Conceitos
 
-## 9. Próximos Passos
+- Scope functions (`let`, `run`, `with`, `apply`, `also`) executam um bloco no contexto de um objeto — escolha pela combinação de acesso (`this`/`it`) e retorno (bloco/objeto) que você precisa.
+- Sealed classes/interfaces restringem subtipos a um conjunto finito, permitindo `when` exaustivo (sem `else`) — ideais para modelar estados de UI.
+- Extension functions adicionam métodos a classes existentes, mas não têm polimorfismo dinâmico.
+- Generics (`<T>`) criam código reutilizável e type-safe, evitando duplicar classes para cada tipo.
+- Enum class modela valores fixos e simples; sealed class modela estados com dados variáveis — escolha conforme a necessidade.
+- `object` cria singletons; `companion object` simula membros estáticos dentro de uma classe.
+- Operadores de coleção (`map`, `filter`, `groupBy`, `fold`, `sortedBy`) transformam dados de forma declarativa, sem loops manuais.
+
+## Próximos Passos
 
 Com esses conceitos você está preparado para o **Módulo 2** (MVVM):
 
 - **Sealed interfaces** → modelar `UiState` no ViewModel
 - **Operadores de coleção** → transformar dados do repositório para a UI
 - **Scope functions** → configurar objetos e tratar nulos de forma idiomática
+
+Este é o último arquivo do Módulo 1 — parabéns por chegar até aqui! Você já tem a base de Kotlin, estrutura de projeto, Activities, componentes do Android, Intents e Jetpack Compose necessária para começar a construir apps de verdade.
 
 👉 Siga para [Módulo 2 – MVVM + Fluxo Unidirecional](../modulo_02/01_mvvm.md)
