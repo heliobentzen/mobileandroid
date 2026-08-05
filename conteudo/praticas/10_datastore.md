@@ -44,13 +44,14 @@ Toda vez que um app "lembra" de uma escolha do usuário — um tema, um idioma, 
 
 ### Passo a Passo
 
-**1. Criando o DataStore** (`PreferenciasManager.kt`):
+Vamos guardar uma preferência (o nome do usuário) de ponta a ponta primeiro, e só depois somar uma segunda (o tema escuro).
+
+**1. Criando o DataStore — só a preferência de nome** (`PreferenciasManager.kt`):
 
 ```kotlin
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -62,10 +63,9 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "co
 
 class PreferenciasManager(private val context: Context) {
 
-    // Chaves tipadas para cada preferência armazenada
+    // Chave tipada para a preferência armazenada
     companion object {
         val NOME_USUARIO = stringPreferencesKey("nome_usuario")   // Chave do tipo String
-        val TEMA_ESCURO = booleanPreferencesKey("tema_escuro")    // Chave do tipo Boolean
     }
 
     // Flow que emite o nome do usuário salvo, ou string vazia como padrão
@@ -73,22 +73,10 @@ class PreferenciasManager(private val context: Context) {
         preferencias[NOME_USUARIO] ?: ""
     }
 
-    // Flow que emite a preferência de tema escuro, falso como padrão
-    val temaEscuro: Flow<Boolean> = context.dataStore.data.map { preferencias ->
-        preferencias[TEMA_ESCURO] ?: false
-    }
-
     // Função suspensa que salva o nome do usuário no DataStore
     suspend fun salvarNomeUsuario(nome: String) {
         context.dataStore.edit { preferencias ->
             preferencias[NOME_USUARIO] = nome
-        }
-    }
-
-    // Função suspensa que salva a preferência de tema escuro
-    suspend fun salvarTemaEscuro(ativado: Boolean) {
-        context.dataStore.edit { preferencias ->
-            preferencias[TEMA_ESCURO] = ativado
         }
     }
 }
@@ -100,7 +88,6 @@ class PreferenciasManager(private val context: Context) {
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -113,9 +100,8 @@ fun PerfilScreen() {
     val preferencias = remember { PreferenciasManager(contexto) }
     val escopo = rememberCoroutineScope()
 
-    // Coleta os valores salvos no DataStore como estado do Compose
+    // Coleta o valor salvo no DataStore como estado do Compose
     val nomeSalvo by preferencias.nomeUsuario.collectAsState(initial = "")
-    val temaEscuro by preferencias.temaEscuro.collectAsState(initial = false)
 
     // Estado local do campo de texto
     var nomeDigitado by remember { mutableStateOf("") }
@@ -147,21 +133,53 @@ fun PerfilScreen() {
         if (nomeSalvo.isNotBlank()) {
             Text("Nome salvo: $nomeSalvo", style = MaterialTheme.typography.bodyLarge)
         }
-
-        Divider()
-
-        // Switch para alternar o tema escuro
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Tema Escuro", modifier = Modifier.weight(1f))
-            Switch(
-                checked = temaEscuro,
-                onCheckedChange = { ativado ->
-                    // Salva a preferência ao alternar o switch
-                    escopo.launch { preferencias.salvarTemaEscuro(ativado) }
-                }
-            )
-        }
     }
+}
+```
+
+Neste ponto já dá para testar: digite um nome, toque em salvar, feche e reabra o app — o nome continua lá.
+
+**3. Adicione uma segunda preferência: tema escuro.** No `PreferenciasManager`, acrescente a chave, o `Flow` e a função de salvar:
+
+```kotlin
+import androidx.datastore.preferences.core.booleanPreferencesKey
+
+// Dentro do companion object:
+val TEMA_ESCURO = booleanPreferencesKey("tema_escuro")    // Chave do tipo Boolean
+
+// Flow que emite a preferência de tema escuro, falso como padrão
+val temaEscuro: Flow<Boolean> = context.dataStore.data.map { preferencias ->
+    preferencias[TEMA_ESCURO] ?: false
+}
+
+// Função suspensa que salva a preferência de tema escuro
+suspend fun salvarTemaEscuro(ativado: Boolean) {
+    context.dataStore.edit { preferencias ->
+        preferencias[TEMA_ESCURO] = ativado
+    }
+}
+```
+
+**4. Adicione o switch de tema na tela.** Colete o novo `Flow` e adicione um `Switch` abaixo do nome salvo:
+
+```kotlin
+import androidx.compose.ui.Alignment
+
+// Dentro de PerfilScreen(), junto com nomeSalvo:
+val temaEscuro by preferencias.temaEscuro.collectAsState(initial = false)
+
+// Adicione ao final da Column, depois do Text de "Nome salvo":
+HorizontalDivider()
+
+Row(verticalAlignment = Alignment.CenterVertically) {
+    Text("Tema Escuro", modifier = Modifier.weight(1f))
+    Switch(
+        checked = temaEscuro,
+        onCheckedChange = { ativado ->
+            // Salva a preferência ao alternar o switch
+            escopo.launch { preferencias.salvarTemaEscuro(ativado) }
+        }
+    )
 }
 ```
 
