@@ -1,8 +1,8 @@
-# Módulo 4: CI/CD para Projetos Android
+# Apêndice: CI/CD para Projetos Android
 
 **Objetivo**: automatizar o processo de build, testes e entrega do app Android usando pipelines de Integração Contínua e Entrega Contínua (CI/CD), para não depender de rodar tudo manualmente a cada mudança.
 
-**Pré-requisito**: ter concluído o [Módulo 4.01 — Testes](./01_testes.md) e o [Módulo 4.02 — Publicação](./02_publicacao.md). Você precisará entender testes unitários e assinatura de apps antes de automatizá-los — este módulo assume que você já sabe o que são esses dois conceitos.
+**Pré-requisito**: ter concluído o [Apêndice — Testes](./09_testes.md) e o [Apêndice — Publicação detalhada](./11_publicacao_detalhada.md). Você precisará entender testes unitários e assinatura de apps antes de automatizá-los — este módulo assume que você já sabe o que são esses dois conceitos.
 
 ---
 
@@ -34,7 +34,7 @@ Sem automação, cada desenvolvedor decide na hora se vai rodar os testes antes 
 
 ### Erros comuns / Pegadinhas
 
-- Achar que CI/CD substitui os testes: o pipeline só roda os testes que **você** escreveu. Sem testes (Módulo 4.01), o CI apenas garante que o código compila, mas não garante que ele funciona corretamente.
+- Achar que CI/CD substitui os testes: o pipeline só roda os testes que **você** escreveu. Sem testes (Apêndice — Testes), o CI apenas garante que o código compila, mas não garante que ele funciona corretamente.
 - Confundir CI com CD: CI é sobre *validar* o código (build + testes) a cada mudança; CD é sobre *entregar* o resultado (gerar/publicar o artefato). Um projeto pode ter só CI, sem chegar a automatizar a entrega.
 
 ---
@@ -188,7 +188,7 @@ Salve este arquivo como `.github/workflows/android-ci.yml` no seu repositório.
 
 ### O que é
 
-Além de build e testes, o pipeline também pode gerar o **AAB assinado** (visto no [Módulo 4.02](./02_publicacao.md)) automaticamente. Para isso, a keystore e as senhas precisam estar disponíveis dentro do pipeline — mas nunca escritas diretamente no arquivo YAML, porque esse arquivo fica no repositório, visível para qualquer pessoa com acesso a ele.
+Além de build e testes, o pipeline também pode gerar o **AAB assinado** (visto no [Apêndice — Publicação detalhada](./11_publicacao_detalhada.md)) automaticamente. Para isso, a keystore e as senhas precisam estar disponíveis dentro do pipeline — mas nunca escritas diretamente no arquivo YAML, porque esse arquivo fica no repositório, visível para qualquer pessoa com acesso a ele.
 
 A solução é usar **secrets**: um cofre de variáveis do próprio GitHub, onde você guarda informações sensíveis (senhas, chaves) de forma criptografada. O valor de um secret nunca aparece nos logs do workflow, mesmo que alguém tente imprimi-lo por engano.
 
@@ -272,7 +272,7 @@ Uma **tag** de versão (`v1.0.0`, por exemplo) é um marcador fixo em um ponto e
 ### Erros comuns / Pegadinhas
 
 - Colar a keystore em Base64 diretamente no YAML em vez de em um secret: isso derrota completamente o propósito de segurança, já que o YAML fica visível no histórico do repositório.
-- Esquecer que o `KEYSTORE_FILE` e as outras variáveis de ambiente (`env:`) precisam corresponder ao que o `build.gradle.kts` espera ler (por exemplo, via `System.getenv(...)`, como visto no Módulo 4.02).
+- Esquecer que o `KEYSTORE_FILE` e as outras variáveis de ambiente (`env:`) precisam corresponder ao que o `build.gradle.kts` espera ler (por exemplo, via `System.getenv(...)`, como visto no Apêndice — Publicação detalhada).
 - Deixar o arquivo `app/keystore.jks` gerado durante o workflow sem removê-lo depois: como a máquina virtual é descartada ao fim de cada execução, isso normalmente não é um risco, mas evite copiar esse arquivo para um artefato de upload por engano.
 
 ---

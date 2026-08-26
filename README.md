@@ -2,7 +2,9 @@
 
 Trilha de estudos para desenvolvimento Android — do Kotlin básico até a publicação na Play Store.
 
-Stack principal: Jetpack Compose, MVVM, Room, Retrofit, Hilt, Coroutines/Flow.
+Stack principal: Kotlin, Jetpack Compose, MVVM, Room e Retrofit.
+
+São três módulos: fundamentos, arquitetura e, no final, um app funcional publicado. O conteúdo avançado fica no [apêndice](conteudo/apendice/), separado do caminho principal.
 
 ## Módulos
 
@@ -34,29 +36,29 @@ Entrega parcial: tela estática com navegação básica entre Composables.
 
 Entrega parcial: app com lista (mock) e tela de detalhes usando MVVM.
 
-### [Módulo 3 — Persistência e Networking](conteudo/modulo_03/)
+### [Módulo 3 — App Funcional e Publicação](conteudo/modulo_03/)
 
 | Aula | Tema |
 |------|------|
-| [01 — Coroutines](conteudo/modulo_03/01_coroutines.md) | Dispatchers, concorrência estruturada |
-| [02 — Retrofit](conteudo/modulo_03/02_retrofit.md) | suspend functions, tratamento de erros |
-| [03 — Room](conteudo/modulo_03/03_persistencia_room.md) | Entity, DAO, migrations |
-| [04 — Repository](conteudo/modulo_03/04_repository.md) | Fontes local + remota combinadas |
-| [05 — Flow Avançado](conteudo/modulo_03/05_flow_avancado.md) | Operadores, combinação e boas práticas |
-| [06 — DataStore](conteudo/modulo_03/06_datastore.md) | Preferências modernas com Flow |
-| [07 — Hilt](conteudo/modulo_03/07_hilt.md) | Injeção de dependências com Hilt |
+| [01 — Salvando dados no celular](conteudo/modulo_03/01_salvar_dados.md) | Room mínimo: lista que não some ao fechar o app |
+| [02 — Buscando dados da internet](conteudo/modulo_03/02_dados_da_internet.md) | Retrofit em um arquivo, com tratamento de erro |
+| [03 — Deixando o app com cara de app](conteudo/modulo_03/03_app_com_cara_de_app.md) | Nome, ícone, cor, versão e permissões |
+| [04 — Gerando o arquivo do app](conteudo/modulo_03/04_gerar_apk_e_aab.md) | Assinatura, keystore, APK e AAB |
+| [05 — Publicando na Play Store](conteudo/modulo_03/05_publicar_na_play_store.md) | Play Console, ficha da loja, trilhas de teste |
+| [06 — Projeto final](conteudo/modulo_03/06_projeto_final.md) | Checklist de entrega e critérios de avaliação |
 
-Entrega parcial: app consumindo API real com cache local em Room.
+Entrega final: app simples e estável, com ícone e nome próprios, APK assinado instalado em celular real e AAB pronto para envio.
 
-### [Módulo 4 — Testes e Publicação](conteudo/modulo_04/)
+### [Apêndice — Conteúdo avançado (opcional)](conteudo/apendice/)
 
-| Aula | Tema |
-|------|------|
-| [01 — Testes](conteudo/modulo_04/01_testes.md) | Unitários (MockK/Turbine) e UI (Compose) |
-| [02 — Publicação](conteudo/modulo_04/02_publicacao.md) | AAB assinado, checklist Play Console |
-| [03 — CI/CD](conteudo/modulo_04/03_ci_cd.md) | Pipeline de build, testes e entrega automatizados |
+Não é necessário para concluir o curso. É para quem quiser ir além depois de publicar.
 
-Entrega final: app com Compose, ViewModel testado, AAB pronto.
+| Assunto | Arquivo |
+|---------|---------|
+| Coroutines a fundo, Flow avançado | [01](conteudo/apendice/01_coroutines.md) · [06](conteudo/apendice/06_flow_avancado.md) |
+| Retrofit em camadas, Repository, Room avançado | [03](conteudo/apendice/03_retrofit_camadas.md) · [05](conteudo/apendice/05_repository.md) · [04](conteudo/apendice/04_room_avancado.md) |
+| DataStore, Hilt | [07](conteudo/apendice/07_datastore.md) · [08](conteudo/apendice/08_hilt.md) |
+| Testes, CI/CD, publicação detalhada | [09](conteudo/apendice/09_testes.md) · [10](conteudo/apendice/10_ci_cd.md) · [11](conteudo/apendice/11_publicacao_detalhada.md) |
 
 ## Práticas
 
@@ -73,8 +75,10 @@ Recomendamos seguir na ordem abaixo para uma evolução progressiva:
 | 06 | [Coroutines](conteudo/praticas/06_coroutines.md) | MVVM + StateFlow |
 | 07 | [Room — Persistência](conteudo/praticas/07_room_persistencia.md) | Coroutines |
 | 08 | [Retrofit — API](conteudo/praticas/08_retrofit_api.md) | Coroutines |
-| 09 | [Hilt — Injeção de Dependências](conteudo/praticas/09_hilt_di.md) | Retrofit — API |
-| 10 | [DataStore — Preferências](conteudo/praticas/10_datastore.md) | Hilt — Injeção de Dependências |
+| 09 | [Hilt — Injeção de Dependências](conteudo/praticas/09_hilt_di.md) *(opcional)* | Retrofit — API |
+| 10 | [DataStore — Preferências](conteudo/praticas/10_datastore.md) *(opcional)* | Hilt — Injeção de Dependências |
+
+As práticas 01 a 08 acompanham os três módulos. As 09 e 10 são extras, ligadas ao [apêndice](conteudo/apendice/).
 
 ## Projetos de exemplo
 
@@ -94,31 +98,33 @@ Recomendamos seguir na ordem abaixo para uma evolução progressiva:
 | Navigation Component | Navegação entre telas |
 | Coroutines + Flow | Concorrência e reatividade |
 | Room | Persistência local |
-| DataStore | Preferências |
-| Retrofit + OkHttp + Gson | APIs REST |
-| Hilt | Injeção de dependências |
-| Coil | Imagens |
-| JUnit / Mockito / Espresso | Testes |
+| Retrofit + Gson | APIs REST |
+| DataStore | Preferências *(apêndice)* |
+| Hilt | Injeção de dependências *(apêndice)* |
+| Coil | Imagens *(opcional)* |
+| JUnit / Mockito / Espresso | Testes *(apêndice)* |
 
 ## Estrutura sugerida de projeto
 
+Para os apps do curso, poucas pastas bastam:
+
 ```
 app/
- ├── data/       # datasources, dtos, repos
- ├── domain/     # models, use cases
- ├── ui/         # activities, composables, viewmodels
- ├── di/         # módulos Hilt
- ├── core/       # utils, extensions
+ ├── data/       # Entity, DAO, Database, Api
+ ├── ui/         # telas Compose e ViewModels
  └── build.gradle.kts
 ```
 
+Projetos maiores costumam separar mais camadas (`domain/`, `di/`, `core/`) — isso está no [apêndice](conteudo/apendice/).
+
 ## Critérios de conclusão
 
-- App roda offline com cache coerente
-- Erros tratados e visíveis ao usuário
-- Fluxo de login (mock ou real)
-- Pipeline de build + testes configurado
-- README com instruções de setup
+- O app abre, funciona e não fecha sozinho
+- Os dados continuam salvos depois de fechar o app, ou os erros de internet são tratados na tela
+- Nome, ícone, cor e versão próprios
+- APK assinado instalado em um celular real
+- AAB assinado gerado e material da ficha da loja pronto
+- README com instruções de setup e de release
 
 ## Extensões opcionais
 

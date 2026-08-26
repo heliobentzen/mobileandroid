@@ -1,4 +1,4 @@
-# Módulo 4: Testes Essenciais no Android
+# Apêndice: Testes Essenciais no Android
 
 **Objetivo**: aprender a escrever testes automatizados para as camadas principais do app (ViewModel, UseCases, Repository), além de um exemplo de teste de interface com Compose. Ao final deste módulo, você será capaz de garantir — com código, não com "achismo" — que seu app funciona como deveria.
 
@@ -383,7 +383,7 @@ class TasksScreenTest {
 - O **ViewModel** é o melhor ponto de partida para testar, porque concentra a lógica de apresentação com pouco acoplamento ao Android.
 - O padrão **Arrange / Act / Assert** ajuda a estruturar qualquer teste de forma clara: preparar, agir, verificar.
 
-**Próximo passo**: com o app testado, o próximo módulo (["Publicação no Google Play"](./02_publicacao.md)) ensina como preparar, assinar e enviar seu app para os usuários reais.
+**Próximo passo**: com o app testado, o próximo módulo (["Publicação no Google Play"](./11_publicacao_detalhada.md)) ensina como preparar, assinar e enviar seu app para os usuários reais.
 
 ---
 
@@ -415,6 +415,6 @@ Antes de considerar o projeto pronto para release:
 - [ ] ViewModel principal tem pelo menos 2 testes (sucesso e erro)
 - [ ] Repository tem teste com fake de API
 - [ ] 1–2 testes de UI para fluxos críticos (lista principal, tela de erro)
-- [ ] Testes passam no CI (GitHub Actions ou similar — veja o [Módulo 4.03 — CI/CD](./03_ci_cd.md))
+- [ ] Testes passam no CI (GitHub Actions ou similar — veja o [Apêndice — CI/CD](./10_ci_cd.md))
 
 ---
