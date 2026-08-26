@@ -297,6 +297,6 @@ fun CatalogoScreen(viewModel: CatalogoViewModel) {
 
 ## Próximos Passos
 
-- **Módulo 4.01 (Testes):** como testar ViewModels que expõem Flows com `Turbine` e `TestDispatcher`.
+- **Apêndice — Testes:** como testar ViewModels que expõem Flows com `Turbine` e `TestDispatcher`.
 - Explorar `callbackFlow` para integrar APIs baseadas em listeners (ex.: sensores, Firebase).
 - Estudar `flowOn` para mover operadores pesados para `Dispatchers.Default` sem trocar o coletor de thread.

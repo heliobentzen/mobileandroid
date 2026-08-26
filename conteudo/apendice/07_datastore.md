@@ -349,6 +349,6 @@ val temaEscuroFlow: Flow<Boolean> = context.dataStore.data
 
 ## Próximos Passos
 
-- **Módulo 4.01 (Testes):** testar ViewModels que usam DataStore com fakes e `TestDispatcher`.
+- **Apêndice — Testes:** testar ViewModels que usam DataStore com fakes e `TestDispatcher`.
 - Explorar **Proto DataStore** para objetos complexos com segurança de tipos via Protocol Buffers.
 - Integrar DataStore com **Hilt** para injeção em projetos maiores.

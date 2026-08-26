@@ -1,4 +1,4 @@
-# Módulo 4: Publicação no Google Play
+# Apêndice: Publicação no Google Play (versão detalhada)
 
 **Objetivo**: preparar o app para distribuição, gerando um Android App Bundle (AAB) assinado, e conhecer o fluxo básico do Google Play Console — o painel onde você gerencia e publica apps na Play Store.
 
@@ -22,7 +22,7 @@ Publicar um app com um problema nessa lista pode significar: usuários não cons
 | **Ícone** | Ícone adaptativo configurado (`mipmap-anydpi-v26`) |
 | **ProGuard/R8** | `isMinifyEnabled = true` no build type `release` para reduzir tamanho e ofuscar |
 | **Permissões** | Apenas as necessárias declaradas no `AndroidManifest.xml` |
-| **Testes** | Testes unitários e de UI passando (veja o [Módulo 4.01 — Testes](./01_testes.md)) |
+| **Testes** | Testes unitários e de UI passando (veja o [Apêndice — Testes](./09_testes.md)) |
 | **README** | Instruções de setup e build documentadas |
 
 Alguns termos dessa tabela merecem explicação:
@@ -290,7 +290,7 @@ Recomendação: comece sempre pela trilha interna, valide, e depois promova grad
 - O **Google Play Console** é onde você cria a ficha da loja, envia o AAB e gerencia as **trilhas de distribuição** (interna → fechada → aberta → produção).
 - Um **rollout gradual** em produção reduz o impacto de bugs não detectados nas trilhas de teste.
 
-**Próximo passo**: publicar manualmente é ótimo para aprender o fluxo, mas repetir esses passos a cada nova versão é trabalhoso e sujeito a erro humano. O próximo módulo, [CI/CD para Projetos Android](./03_ci_cd.md), ensina como automatizar build, testes e geração do AAB a cada mudança no código.
+**Próximo passo**: publicar manualmente é ótimo para aprender o fluxo, mas repetir esses passos a cada nova versão é trabalhoso e sujeito a erro humano. O próximo módulo, [CI/CD para Projetos Android](./10_ci_cd.md), ensina como automatizar build, testes e geração do AAB a cada mudança no código.
 
 ---
 

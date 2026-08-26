@@ -295,6 +295,6 @@ Organize por responsabilidade: `NetworkModule` (Retrofit, OkHttp), `DatabaseModu
 
 ## Próximos Passos
 
-- **Módulo 4.01 (Testes):** substituir Repositories por fakes usando interfaces e Hilt Testing (`@UninstallModules`, `@BindValue`).
+- **Apêndice — Testes:** substituir Repositories por fakes usando interfaces e Hilt Testing (`@UninstallModules`, `@BindValue`).
 - Explorar `@AssistedInject` para ViewModels que recebem parâmetros dinâmicos (ex.: ID de item via navegação).
 - Integrar Hilt com `WorkManager` para injetar dependências em tarefas em segundo plano.
