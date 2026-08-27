@@ -438,6 +438,6 @@ class TemporizadorViewModel : ViewModel() {
 
 ## Próximos Passos
 
-- Estude o módulo `01_coroutines.md` para aprofundar cancelamento cooperativo e concorrência estruturada.
-- Avance para `08_retrofit_api.md` para usar coroutines em chamadas de rede reais.
-- Combine com `07_room_persistencia.md` para usar `Flow` no banco de dados local.
+- Siga para o [Módulo 3 — Aula 1: salvando dados no celular](../modulo_03/01_salvar_dados.md), onde as coroutines aparecem em um app de verdade.
+- Pratique com [Room](07_room_persistencia.md) e [Retrofit](08_retrofit_api.md).
+- Se quiser aprofundar cancelamento e concorrência estruturada, veja o [apêndice sobre coroutines](../apendice/01_coroutines.md) — é opcional.

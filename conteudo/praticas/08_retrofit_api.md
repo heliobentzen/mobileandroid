@@ -1,232 +1,183 @@
-# Prática: Consumindo APIs com Retrofit para Iniciantes
+# Prática 08 — Retrofit: buscando dados da internet
 
-Este guia apresenta exercícios práticos para buscar dados da internet usando o **Retrofit**, a biblioteca mais popular para chamadas de rede no Android.
+**Pré-requisito:** [Módulo 3 — Aula 2](../modulo_03/02_dados_da_internet.md)
 
----
+Na aula você baixou uma lista de posts. Aqui você vai fazer um **app de piadas**: aperta o botão, vem uma piada nova da internet.
 
-## O que é o Retrofit?
-
-O Retrofit transforma sua API REST em uma interface Kotlin. Você descreve os endpoints como funções e o Retrofit cuida de toda a comunicação HTTP por baixo dos panos.
+É o mesmo padrão da aula, com uma diferença útil: os nomes dos campos do JSON estão em inglês e você vai aprender a renomeá-los para português.
 
 ---
 
 ## Configuração
 
-Adicione ao `app/build.gradle.kts`:
+No `build.gradle.kts` do módulo `app`:
 
 ```kotlin
 dependencies {
-    // Retrofit + conversor de JSON
+    // ...as dependências que já existem...
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
-
-    // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-
-    // ViewModel e Lifecycle
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 }
 ```
 
-Adicione a permissão de internet ao `AndroidManifest.xml`:
+No `AndroidManifest.xml`, antes de `<application>`:
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
+**Sync Now.**
+
 ---
 
-## Prática 1: Buscando Piadas da Internet
+## Parte 1 — App de piadas
 
-### Objetivo
-Fazer uma chamada simples a uma API pública e exibir o resultado na tela.
+A API que vamos usar é gratuita e não pede cadastro: [official-joke-api](https://official-joke-api.appspot.com/random_joke).
 
-Consumir uma API é o que conecta seu app ao mundo real — dados de clima, notícias, produtos, redes sociais, quase tudo vem de algum servidor remoto. Esta prática mostra o fluxo completo, do menor pedaço (definir o endpoint) até o maior (exibir na tela com estados de carregamento e erro), que você vai repetir em praticamente toda tela que busca dados de fora do app.
+Abra esse link no navegador. Você vai ver algo assim:
 
-**API usada**: [Official Joke API](https://official-joke-api.appspot.com/random_joke) (sem chave)
+```json
+{
+  "id": 42,
+  "type": "general",
+  "setup": "Por que o livro de matemática estava triste?",
+  "punchline": "Porque tinha muitos problemas."
+}
+```
 
-### Passo a Passo
-
-**1. Modelo de dados** (`Piada.kt`):
+### 1. O molde dos dados — `Piada.kt`
 
 ```kotlin
 import com.google.gson.annotations.SerializedName
 
 data class Piada(
-    @SerializedName("id") val id: Int,
-    @SerializedName("type") val tipo: String,
     @SerializedName("setup") val pergunta: String,
     @SerializedName("punchline") val resposta: String
 )
 ```
 
-> **O que é `@SerializedName`?** É a anotação que mapeia o campo do JSON para a propriedade da data class. Por exemplo, `"setup"` no JSON vira `pergunta` no Kotlin.
+**O que é `@SerializedName`?** É um tradutor. O JSON traz `setup`, mas no seu código fica mais claro chamar de `pergunta`. A anotação liga os dois.
 
-**2. Interface de serviço** (`PiadaService.kt`):
+Só precisa dela quando o nome muda. Se você chamasse a propriedade de `setup`, ela não seria necessária — foi o que fizemos na aula.
 
-```kotlin
-import retrofit2.http.GET
+E repare: o JSON tem `id` e `type`, mas nós não declaramos. **Campo que você não declara é ignorado** — declare só o que a tela usa.
 
-interface PiadaService {
-    // Define o endpoint: GET https://official-joke-api.appspot.com/random_joke
-    @GET("random_joke")
-    suspend fun buscarPiadaAleatoria(): Piada
-
-    @GET("jokes/ten")
-    suspend fun buscarDezPiadas(): List<Piada>
-}
-```
-
-**3. Cliente Retrofit** (`RetrofitClient.kt`):
+### 2. Endereço e ações — `Rede.kt`
 
 ```kotlin
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.GET
 
-object RetrofitClient {
-    private const val BASE_URL = "https://official-joke-api.appspot.com/"
+interface Api {
+    @GET("random_joke")
+    suspend fun piadaAleatoria(): Piada
+}
 
-    // Lazy: o Retrofit só é criado na primeira vez que for acessado
-    val piadaService: PiadaService by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(PiadaService::class.java)
-    }
+object Rede {
+    val api: Api = Retrofit.Builder()
+        .baseUrl("https://official-joke-api.appspot.com/")
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(Api::class.java)
 }
 ```
 
-**4. Estado da UI** (`PiadaUiState.kt`):
+`baseUrl` + `@GET` formam o endereço final: `https://official-joke-api.appspot.com/random_joke`.
+
+> A `baseUrl` **precisa** terminar com `/`. Se esquecer, o app fecha na hora com uma mensagem sobre isso.
+
+### 3. O ViewModel — `PiadaViewModel.kt`
 
 ```kotlin
-sealed interface PiadaUiState {
-    data object Carregando : PiadaUiState
-    data class Sucesso(val piada: Piada) : PiadaUiState
-    data class Erro(val mensagem: String) : PiadaUiState
-}
-```
-
-**5. ViewModel** (`PiadaViewModel.kt`):
-
-```kotlin
+import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class PiadaViewModel(
-    private val service: PiadaService = RetrofitClient.piadaService
-) : ViewModel() {
+class PiadaViewModel : ViewModel() {
 
-    private val _uiState = MutableStateFlow<PiadaUiState>(PiadaUiState.Carregando)
-    val uiState: StateFlow<PiadaUiState> = _uiState.asStateFlow()
+    var piada by mutableStateOf<Piada?>(null)
+        private set
+    var carregando by mutableStateOf(true)
+        private set
+    var deuErro by mutableStateOf(false)
+        private set
 
-    init { buscarPiada() }
+    init {
+        buscar()
+    }
 
-    fun buscarPiada() {
-        viewModelScope.launch {
-            _uiState.value = PiadaUiState.Carregando
-            try {
-                val piada = service.buscarPiadaAleatoria()
-                _uiState.value = PiadaUiState.Sucesso(piada)
-            } catch (e: Exception) {
-                _uiState.value = PiadaUiState.Erro("Falha ao carregar: ${e.message}")
-            }
+    fun buscar() = viewModelScope.launch {
+        carregando = true
+        deuErro = false
+        try {
+            piada = Rede.api.piadaAleatoria()
+        } catch (e: Exception) {
+            deuErro = true
         }
+        carregando = false
     }
 }
 ```
 
-**6. Tela Compose** (`PiadaScreen.kt`):
+Três variáveis, três situações da tela. `Piada?` com interrogação porque, antes da primeira resposta chegar, ainda não existe piada nenhuma.
+
+### 4. A tela — `TelaPiada.kt`
 
 ```kotlin
-import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun PiadaScreen(viewModel: PiadaViewModel = viewModel()) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var revelarResposta by remember { mutableStateOf(false) }
+fun TelaPiada(vm: PiadaViewModel = viewModel()) {
 
-    // Quando a piada muda, esconde a resposta automaticamente
-    LaunchedEffect(uiState) { revelarResposta = false }
+    var mostrarResposta by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("😂 Piada do Momento", style = MaterialTheme.typography.headlineMedium)
-
+        Text("😂 Piada do dia", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(32.dp))
 
-        when (val state = uiState) {
-            is PiadaUiState.Carregando -> CircularProgressIndicator()
+        when {
+            vm.carregando -> CircularProgressIndicator()
 
-            is PiadaUiState.Erro -> {
-                Text(
-                    text = state.mensagem,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(16.dp))
-                Button(onClick = { viewModel.buscarPiada() }) { Text("Tentar novamente") }
+            vm.deuErro -> {
+                Text("Não consegui carregar. Verifique sua internet.", textAlign = TextAlign.Center)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { vm.buscar() }) { Text("Tentar de novo") }
             }
 
-            is PiadaUiState.Sucesso -> {
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Pergunta da piada
-                        Text(
-                            text = state.piada.pergunta,
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center
-                        )
+            vm.piada != null -> {
+                Text(vm.piada!!.pergunta, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
 
-                        // Resposta — revelada ao clicar
-                        AnimatedVisibility(visible = revelarResposta) {
-                            Text(
-                                text = state.piada.resposta,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontStyle = FontStyle.Italic,
-                                color = MaterialTheme.colorScheme.primary,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        if (!revelarResposta) {
-                            OutlinedButton(onClick = { revelarResposta = true }) {
-                                Text("Revelar resposta 🎭")
-                            }
-                        }
+                if (mostrarResposta) {
+                    Text(
+                        vm.piada!!.resposta,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+                } else {
+                    OutlinedButton(onClick = { mostrarResposta = true }) {
+                        Text("Revelar resposta 🎭")
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
-
-                Button(
-                    onClick = { viewModel.buscarPiada() },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Spacer(Modifier.height(32.dp))
+                Button(onClick = {
+                    mostrarResposta = false     // esconde a resposta da piada anterior
+                    vm.buscar()
+                }) {
                     Text("Próxima piada ➡")
                 }
             }
@@ -235,286 +186,136 @@ fun PiadaScreen(viewModel: PiadaViewModel = viewModel()) {
 }
 ```
 
-> **💡 Por trás dos panos**
-> Repare que `PiadaService` é apenas uma `interface` — não existe uma implementação escrita à mão em nenhum lugar. O Retrofit lê as anotações (`@GET`, `@Path`, etc.) e **gera** a implementação real automaticamente, em tempo de execução, quando você chama `retrofit.create(PiadaService::class.java)`. Isso é possível porque as funções são `suspend`: o Retrofit sabe que pode fazer a chamada de rede em background e "pausar" a coroutine até a resposta chegar, sem travar a UI — o mesmo mecanismo de suspensão que você viu no guia de coroutines.
-
-### Exercícios
-
-1. Adicione um histórico das últimas 5 piadas buscadas, exibido como uma lista abaixo do card principal.
-   - *Dica se travar*: guarde uma `List<Piada>` no ViewModel e adicione a nova piada a cada busca bem-sucedida, usando `.take(5)` para manter só as 5 mais recentes.
-2. Adicione um botão "Compartilhar" que abre o seletor de compartilhamento do Android com o texto da piada.
-3. Modifique o ViewModel para buscar as dez piadas de uma vez (`service.buscarDezPiadas()`) e navegar entre elas localmente (sem nova chamada de rede a cada piada).
-   - *Dica se travar*: guarde a lista completa e um índice atual no ViewModel; o botão "Próxima piada" só precisa incrementar o índice, sem chamar a API de novo.
+Na `MainActivity`, chame `TelaPiada()`.
 
 ---
 
-## Prática 2: Lista de Posts com JSONPlaceholder
+## Teste se funcionou
 
-### Objetivo
-Buscar e exibir uma lista de dados da API pública JSONPlaceholder.
+- [ ] Abri o app e veio uma piada
+- [ ] Toquei em "Revelar resposta" e a resposta apareceu
+- [ ] Toquei em "Próxima piada" e veio outra, com a resposta escondida de novo
+- [ ] **Coloquei em modo avião**, toquei em "Próxima piada" e apareceu a mensagem de erro — o app **não** fechou
+- [ ] Tirei do modo avião, toquei em "Tentar de novo" e voltou a funcionar
 
-Esta prática introduz um padrão muito usado em apps profissionais: separar o **DTO** (o formato exato que a API devolve) do **modelo de domínio** (o formato que sua tela realmente usa). Isso parece um passo extra desnecessário no começo, mas evita dor de cabeça depois — se a API mudar um nome de campo, você só ajusta em um lugar (a conversão), sem precisar mexer em toda a tela.
-
-**API usada**: [JSONPlaceholder](https://jsonplaceholder.typicode.com/) (sem chave)
-
-### Passo a Passo
-
-**1. Modelos** (`Post.kt`):
-
-```kotlin
-import com.google.gson.annotations.SerializedName
-
-data class PostDto(
-    @SerializedName("id") val id: Int,
-    @SerializedName("userId") val userId: Int,
-    @SerializedName("title") val titulo: String,
-    @SerializedName("body") val corpo: String
-)
-
-// Modelo de domínio: o que a UI usa (pode ser diferente do DTO)
-data class Post(
-    val id: Int,
-    val titulo: String,
-    val corpo: String
-)
-
-// Converte DTO em modelo de domínio
-fun PostDto.toDomain() = Post(id = id, titulo = titulo, corpo = corpo)
-```
-
-**2. Service** (`PostService.kt`):
-
-```kotlin
-import retrofit2.http.GET
-import retrofit2.http.Path
-import retrofit2.http.Query
-
-interface PostService {
-    @GET("posts")
-    suspend fun buscarPosts(): List<PostDto>
-
-    @GET("posts/{id}")
-    suspend fun buscarPost(@Path("id") id: Int): PostDto
-
-    @GET("posts")
-    suspend fun buscarPostsDoUsuario(@Query("userId") userId: Int): List<PostDto>
-}
-```
-
-**3. Repositório** (`PostRepository.kt`):
-
-```kotlin
-class PostRepository(private val service: PostService) {
-    suspend fun buscarPosts(): List<Post> = service.buscarPosts().map { it.toDomain() }
-    suspend fun buscarPost(id: Int): Post = service.buscarPost(id).toDomain()
-}
-```
-
-**4. ViewModel** (`PostListViewModel.kt`):
-
-```kotlin
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-
-sealed interface PostListUiState {
-    data object Carregando : PostListUiState
-    data class Sucesso(val posts: List<Post>) : PostListUiState
-    data class Erro(val mensagem: String) : PostListUiState
-}
-
-class PostListViewModel(
-    private val repository: PostRepository
-) : ViewModel() {
-
-    private val _uiState = MutableStateFlow<PostListUiState>(PostListUiState.Carregando)
-    val uiState: StateFlow<PostListUiState> = _uiState.asStateFlow()
-
-    init { carregarPosts() }
-
-    fun carregarPosts() {
-        viewModelScope.launch {
-            _uiState.value = PostListUiState.Carregando
-            try {
-                val posts = repository.buscarPosts()
-                _uiState.value = PostListUiState.Sucesso(posts)
-            } catch (e: Exception) {
-                _uiState.value = PostListUiState.Erro(e.message ?: "Erro ao carregar posts")
-            }
-        }
-    }
-}
-```
-
-**5. Tela com lista** (`PostListScreen.kt`):
-
-```kotlin
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-
-@Composable
-fun PostListScreen(
-    viewModel: PostListViewModel,
-    onPostClick: (Post) -> Unit = {}
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Posts") }) }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (val state = uiState) {
-                is PostListUiState.Carregando -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
-
-                is PostListUiState.Erro -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("❌ ${state.mensagem}", color = MaterialTheme.colorScheme.error)
-                        Button(onClick = { viewModel.carregarPosts() }) { Text("Tentar novamente") }
-                    }
-                }
-
-                is PostListUiState.Sucesso -> {
-                    LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(state.posts, key = { it.id }) { post ->
-                            ElevatedCard(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onPostClick(post) }
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "${post.id}. ${post.titulo}",
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.titleSmall
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        text = post.corpo,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 2
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-```
-
-> **💡 Por trás dos panos**
-> A função `fun PostDto.toDomain() = Post(...)` é uma **extension function**: ela "adiciona" um método novo (`toDomain()`) a uma classe que você não escreveu do zero para esse fim, sem precisar herdar dela ou modificá-la. É um recurso muito usado no Kotlin para manter conversões organizadas perto de onde fazem sentido, sem poluir a classe original com lógica que só interessa a uma camada específica do app.
-
-### Exercícios
-
-1. Adicione uma barra de pesquisa que filtra os posts pelo título em tempo real (sem nova chamada de rede).
-   - *Dica se travar*: filtre sobre a lista já carregada em `state.posts` — não é preciso chamar a API de novo a cada letra digitada.
-2. Implemente uma tela de detalhe: ao clicar em um post, navegue para uma nova tela que exibe o título e o corpo completo.
-   - *Dica se travar*: reveja o guia `01_compose_navigation.md` para relembrar como passar dados entre telas usando o `NavHost`.
-3. Adicione paginação manual: exiba os 10 primeiros posts e um botão "Carregar mais" que adiciona os próximos 10.
-   - *Dica se travar*: guarde quantos posts já estão visíveis em um estado (`var quantidadeVisivel by remember { mutableStateOf(10) }`) e use `posts.take(quantidadeVisivel)` para exibir só uma parte da lista.
+O quarto item é o mais importante da prática.
 
 ---
 
-## Prática 3: Tratamento de Erros
+## Exercícios
 
-### Objetivo
-Tratar os diferentes tipos de erro que podem acontecer em chamadas de rede.
+### 1. Contador de piadas
 
-No mundo real, chamadas de rede falham o tempo todo: o usuário está sem internet, o servidor está fora do ar, a resposta veio corrompida. Um app que só mostra "Ocorreu um erro" genérico frustra o usuário, que não sabe se deve tentar de novo, verificar sua conexão ou simplesmente esperar. Diferenciar os tipos de erro (rede, servidor, dados) permite mostrar mensagens úteis e até ações específicas, como um botão "Tentar novamente" só quando faz sentido.
+Mostre quantas piadas você já viu nesta sessão.
 
-### Passo a Passo
+> *Dica:* no ViewModel, `var quantidade by mutableStateOf(0)` e `quantidade++` sempre que uma piada chegar com sucesso.
+
+### 2. Botão de compartilhar
+
+Adicione um botão que abre o menu de compartilhamento do Android com a piada inteira.
+
+> *Dica:* é a `Intent` do Módulo 1:
+> ```kotlin
+> val contexto = LocalContext.current
+> // dentro do onClick:
+> val envio = Intent(Intent.ACTION_SEND).apply {
+>     type = "text/plain"
+>     putExtra(Intent.EXTRA_TEXT, "${vm.piada!!.pergunta}\n\n${vm.piada!!.resposta}")
+> }
+> contexto.startActivity(Intent.createChooser(envio, "Compartilhar piada"))
+> ```
+
+### 3. Dez piadas de uma vez
+
+Buscar na internet a cada toque é lento. Baixe 10 piadas de uma vez e navegue entre elas sem usar a rede.
+
+> *Dica:* adicione na `Api`:
+> ```kotlin
+> @GET("jokes/ten")
+> suspend fun dezPiadas(): List<Piada>
+> ```
+> No ViewModel, guarde a lista e um índice (`var posicao by mutableStateOf(0)`). O botão "Próxima" só faz `posicao++`. Quando `posicao` chegar ao fim da lista, aí sim busque outras dez.
+
+### 4. Salvar as favoritas *(desafio)*
+
+Junte esta prática com a [07](07_room_persistencia.md): um botão ⭐ que salva a piada no Room, e uma segunda tela listando as salvas.
+
+> *Dica:* a `@Entity` precisa de `@PrimaryKey(autoGenerate = true) val id: Int = 0`, mais os campos `pergunta` e `resposta`. Esse é exatamente o desafio da opção C do [projeto final](../modulo_03/06_projeto_final.md).
+
+---
+
+## Parte 2 — Mensagens de erro melhores
+
+Hoje o seu `catch` mostra a mesma mensagem para tudo. Mas "você está sem internet" e "o servidor caiu" são problemas diferentes, e o usuário pode resolver o primeiro.
+
+Dá para separar os dois trocando um `catch` por dois:
 
 ```kotlin
 import retrofit2.HttpException
 import java.io.IOException
 
-fun main() {
-    // Tipos comuns de exceção em chamadas de rede:
-}
+// dentro do ViewModel:
+var mensagemErro by mutableStateOf("")
+    private set
 
-// No ViewModel ou Repository, trate erros específicos:
-suspend fun buscarComTratamento(service: PiadaService): Result<Piada> {
-    return try {
-        val piada = service.buscarPiadaAleatoria()
-        Result.success(piada)
+fun buscar() = viewModelScope.launch {
+    carregando = true
+    deuErro = false
+    try {
+        piada = Rede.api.piadaAleatoria()
     } catch (e: IOException) {
-        // Sem internet, DNS falhou, timeout, etc.
-        Result.failure(Exception("Sem conexão com a internet. Verifique sua rede."))
+        // o celular não conseguiu falar com o servidor: sem sinal, Wi-Fi caiu, timeout
+        deuErro = true
+        mensagemErro = "Sem internet. Verifique sua conexão."
     } catch (e: HttpException) {
-        // O servidor respondeu com erro HTTP (4xx, 5xx)
-        when (e.code()) {
-            404 -> Result.failure(Exception("Recurso não encontrado."))
-            401 -> Result.failure(Exception("Não autorizado. Verifique suas credenciais."))
-            500 -> Result.failure(Exception("Erro interno do servidor. Tente mais tarde."))
-            else -> Result.failure(Exception("Erro HTTP ${e.code()}: ${e.message()}"))
-        }
-    } catch (e: Exception) {
-        // Outros erros inesperados
-        Result.failure(Exception("Erro inesperado: ${e.message}"))
+        // o servidor respondeu, mas com erro (404, 500...)
+        deuErro = true
+        mensagemErro = "O servidor está com problema. Tente mais tarde."
     }
+    carregando = false
 }
 ```
 
-> **💡 Por trás dos panos**
-> `Result<T>` é um tipo do próprio Kotlin que representa "ou deu certo, ou deu errado" sem precisar lançar uma exceção para cima na pilha de chamadas. `Result.success(piada)` guarda o valor de sucesso; `Result.failure(erro)` guarda o erro. Quem recebe o `Result` decide o que fazer — mostrar o dado, ou tratar o erro — sem precisar de um `try/catch` extra. É uma alternativa mais explícita a deixar exceções "vazarem" silenciosamente pela aplicação, o que facilita bastante saber, só olhando a assinatura da função, que ela pode falhar.
+Na tela, mostre `vm.mensagemErro` no lugar do texto fixo.
 
-### Exercícios
+**A ordem importa:** o Kotlin usa o **primeiro** `catch` que combina. Se você colocar `catch (e: Exception)` antes dos outros, ele pega tudo e os demais nunca rodam. O genérico vai sempre por último.
 
-1. Modifique o `PiadaViewModel` para usar a função `buscarComTratamento` e exibir mensagens de erro específicas na tela.
-   - *Dica se travar*: `Result` tem os métodos `.onSuccess { }` e `.onFailure { }` para tratar cada caso separadamente, sem precisar de `try/catch` no ViewModel.
-2. Adicione um indicador visual diferente para cada tipo de erro (sem internet vs. erro do servidor).
-3. Implemente um mecanismo de retry com backoff: na primeira falha, tente novamente após 1s; na segunda, após 2s; na terceira, desista e exiba o erro. Use `delay` e um loop `repeat`.
-   - *Dica se travar*: comece com um `repeat(3) { tentativa -> ... }` simples (sem o delay crescente) para garantir que o retry básico funciona, e só depois adicione `delay(1000L * (tentativa + 1))`.
+**Exercício:** teste os dois casos. Modo avião dispara o `IOException`. Para o `HttpException`, troque a rota `random_joke` por `rota_que_nao_existe` e veja a outra mensagem.
+
+---
+
+## Erros comuns
+
+| Erro | Causa | Solução |
+|------|-------|---------|
+| `SecurityException: Permission denied` | Faltou a permissão de internet | Adicione `<uses-permission android:name="android.permission.INTERNET" />` |
+| `baseUrl must end in /` | Endereço sem a barra final | `https://.../` |
+| Campos vindo `null` ou vazios | Nome do JSON diferente do da `data class` | Use `@SerializedName("nomeNoJson")` |
+| `NullPointerException` ao mostrar a piada | Usou `vm.piada!!` antes de a resposta chegar | Só use dentro do ramo `vm.piada != null` do `when` |
+| App fecha ao ficar sem internet | Faltou o `try / catch` | Toda chamada de rede precisa de `try / catch` |
+| A tela fica carregando para sempre | `carregando = false` está dentro do `try` | Deixe fora, para rodar mesmo quando dá erro |
 
 ---
 
 ## Resumo
 
+| Anotação | O que faz |
+|----------|-----------|
+| `@GET("rota")` | Busca dados nessa rota |
+| `@Query("nome")` | Adiciona `?nome=valor` no endereço |
+| `@Path("nome")` | Substitui `{nome}` no endereço |
+| `@SerializedName("campo")` | Renomeia um campo do JSON |
+
+O ciclo é sempre o mesmo:
+
 ```
-Interface (Service)  →  define endpoints
-RetrofitClient       →  cria a instância do Retrofit
-Repository       →  faz a chamada e transforma o DTO em modelo de domínio
-ViewModel        →  chama o Repository no viewModelScope; expõe StateFlow
-UI (Compose)     →  observa o StateFlow e exibe Loading/Success/Error
+tela chama vm.buscar() → launch → try { api } catch { erro } → mutableStateOf muda → tela redesenha
 ```
 
-| Anotação Retrofit | O que faz |
-|-------------------|-----------|
-| `@GET("path")` | Requisição GET |
-| `@POST("path")` | Requisição POST |
-| `@Path("nome")` | Substitui `{nome}` na URL |
-| `@Query("nome")` | Adiciona `?nome=valor` à URL |
-| `@Body` | Envia objeto no corpo da requisição |
-| `@SerializedName` | Mapeia campo do JSON para propriedade Kotlin |
+E as três regras que valem para qualquer app com internet:
 
----
+1. Permissão no manifest
+2. `try / catch` em toda chamada
+3. Três estados na tela: carregando, erro, conteúdo
 
-## Próximos Passos
-
-- Estude o módulo `02_retrofit.md` para ver a estrutura em camadas completa.
-- Combine com `07_room_persistencia.md` para cache local dos dados da API.
-- Explore o módulo `04_repository.md` para organizar o código com o padrão Repository.
+👉 De volta ao [Módulo 3 — Projeto final](../modulo_03/06_projeto_final.md)

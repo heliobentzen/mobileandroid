@@ -73,8 +73,8 @@ Recomendamos seguir na ordem abaixo para uma evolução progressiva:
 | 04 | [MVVM + StateFlow](conteudo/praticas/04_mvvm_stateflow.md) | Compose + Navigation |
 | 05 | [Listas com LazyColumn](conteudo/praticas/05_listas_lazy_column.md) | MVVM + StateFlow |
 | 06 | [Coroutines](conteudo/praticas/06_coroutines.md) | MVVM + StateFlow |
-| 07 | [Room — Persistência](conteudo/praticas/07_room_persistencia.md) | Coroutines |
-| 08 | [Retrofit — API](conteudo/praticas/08_retrofit_api.md) | Coroutines |
+| 07 | [Room — Persistência](conteudo/praticas/07_room_persistencia.md) | Módulo 3 — Aula 1 |
+| 08 | [Retrofit — API](conteudo/praticas/08_retrofit_api.md) | Módulo 3 — Aula 2 |
 | 09 | [Hilt — Injeção de Dependências](conteudo/praticas/09_hilt_di.md) *(opcional)* | Retrofit — API |
 | 10 | [DataStore — Preferências](conteudo/praticas/10_datastore.md) *(opcional)* | Hilt — Injeção de Dependências |
 

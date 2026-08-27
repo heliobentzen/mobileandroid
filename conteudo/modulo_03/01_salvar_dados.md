@@ -15,14 +15,14 @@ Abra o arquivo `build.gradle.kts` (o do módulo `app`) e adicione:
 ```kotlin
 plugins {
     // ...os plugins que já existem...
-    id("com.google.devtools.ksp") version "2.0.21-1.0.28"
+    id("com.google.devtools.ksp") version "2.1.0-1.0.29"
 }
 
 dependencies {
     // ...as dependências que já existem...
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.7.0")
+    implementation("androidx.room:room-ktx:2.7.0")
+    ksp("androidx.room:room-compiler:2.7.0")
 }
 ```
 

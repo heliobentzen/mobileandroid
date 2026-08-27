@@ -1,446 +1,343 @@
-# Prática: Persistência Local com Room para Iniciantes
+# Prática 07 — Room: salvando dados no celular
 
-Este guia apresenta exercícios práticos para salvar e recuperar dados localmente no dispositivo Android usando o **Room**, a biblioteca oficial de banco de dados do Android.
+**Pré-requisito:** [Módulo 3 — Aula 1](../modulo_03/01_salvar_dados.md)
 
----
+Na aula você fez uma lista de tarefas. Aqui você vai fazer um **app de anotações**, que é a mesma ideia com um campo a mais. Repetir o padrão com um app diferente é o que faz ele grudar.
 
-## O que é o Room?
-
-O Room é uma camada sobre o SQLite que torna o trabalho com banco de dados muito mais simples:
-
-- Você descreve a **tabela** como uma `data class` com `@Entity`.
-- Você define as **operações** (inserir, deletar, buscar) em uma interface `@Dao`.
-- O Room **gera o código SQL** automaticamente.
+No fim, você tem um app que salva anotações com título e texto, e que continua com tudo lá depois de fechar.
 
 ---
 
 ## Configuração
 
-Adicione ao `app/build.gradle.kts`:
+No `build.gradle.kts` do módulo `app`:
 
 ```kotlin
 plugins {
-    // ... outros plugins
-    id("com.google.devtools.ksp") version "2.1.0-1.0.29" // Verifique a versão compatível com seu Kotlin
+    // ...os plugins que já existem...
+    id("com.google.devtools.ksp") version "2.1.0-1.0.29"
 }
 
 dependencies {
+    // ...as dependências que já existem...
     implementation("androidx.room:room-runtime:2.7.0")
     implementation("androidx.room:room-ktx:2.7.0")
     ksp("androidx.room:room-compiler:2.7.0")
-
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 }
 ```
 
+**Sync Now.**
+
 ---
 
-## Prática 1: App de Anotações (CRUD Completo)
+## Parte 1 — App de anotações
 
-### Objetivo
-Criar um app simples de anotações que salva os dados mesmo quando o app é fechado.
-
-Sem persistência local, todo dado do app desaparece assim que o usuário fecha o aplicativo ou o sistema o encerra para liberar memória — uma experiência frustrante. O Room resolve isso salvando dados diretamente no dispositivo, em um banco SQLite gerenciado para você. Esta prática cobre o fluxo CRUD completo (Create, Read, Update, Delete) — o conjunto de operações que praticamente qualquer app com dados próprios precisa implementar, seja uma lista de tarefas, um catálogo de produtos favoritos ou um diário pessoal.
-
-### Passo a Passo
-
-**1. Entity — Representa a tabela** (`Anotacao.kt`):
+### 1. A tabela — `Anotacao.kt`
 
 ```kotlin
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "anotacoes")
+@Entity
 data class Anotacao(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,             // ID gerado automaticamente
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val titulo: String,
-    val conteudo: String,
-    val criadaEm: Long = System.currentTimeMillis() // Timestamp da criação
+    val texto: String
 )
 ```
 
-**O que cada anotação significa:**
-- `@Entity`: marca a classe como uma tabela do banco de dados.
-- `@PrimaryKey(autoGenerate = true)`: o banco gera o ID automaticamente.
-- Os outros campos viram colunas da tabela.
+Comparando com a aula: é a mesma coisa, só com **dois** campos de texto em vez de um.
 
-**2. DAO — Define as operações** (`AnotacaoDao.kt`):
+### 2. As ações — `AnotacaoDao.kt`
 
 ```kotlin
 import androidx.room.*
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AnotacaoDao {
 
-    // Flow: a UI é atualizada automaticamente quando os dados mudam
-    @Query("SELECT * FROM anotacoes ORDER BY criadaEm DESC")
-    fun buscarTodas(): Flow<List<Anotacao>>
+    @Query("SELECT * FROM Anotacao ORDER BY id DESC")
+    suspend fun listar(): List<Anotacao>
 
-    @Query("SELECT * FROM anotacoes WHERE id = :id")
-    suspend fun buscarPorId(id: Long): Anotacao?
-
-    // REPLACE: se já existir um registro com o mesmo ID, substitui
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun inserir(anotacao: Anotacao)
 
     @Delete
-    suspend fun deletar(anotacao: Anotacao)
-
-    @Query("UPDATE anotacoes SET titulo = :titulo, conteudo = :conteudo WHERE id = :id")
-    suspend fun atualizar(id: Long, titulo: String, conteudo: String)
+    suspend fun apagar(anotacao: Anotacao)
 }
 ```
 
-**3. Database — Configuração do banco** (`AppDatabase.kt`):
+O `ORDER BY id DESC` é a única novidade: mostra as anotações **mais novas primeiro**. Sem ele, as antigas ficariam no topo.
+
+### 3. O banco — `Banco.kt`
 
 ```kotlin
 import android.content.Context
-import androidx.room.Database
-import androidx.room.Room
-import androidx.room.RoomDatabase
+import androidx.room.*
 
-@Database(
-    entities = [Anotacao::class],
-    version = 1,
-    exportSchema = false
-)
-abstract class AppDatabase : RoomDatabase() {
+@Database(entities = [Anotacao::class], version = 1)
+abstract class Banco : RoomDatabase() {
 
     abstract fun anotacaoDao(): AnotacaoDao
 
     companion object {
-        @Volatile
-        private var INSTANCE: AppDatabase? = null
+        private var instancia: Banco? = null
 
-        fun obter(context: Context): AppDatabase {
-            // Garante que apenas uma instância seja criada (padrão Singleton)
-            return INSTANCE ?: synchronized(this) {
-                val instancia = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "anotacoes.db"
-                ).build()
-                INSTANCE = instancia
-                instancia
+        fun pegar(context: Context): Banco {
+            if (instancia == null) {
+                instancia = Room.databaseBuilder(context, Banco::class.java, "anotacoes").build()
             }
+            return instancia!!
         }
     }
 }
 ```
 
-**4. ViewModel** (`AnotacaoViewModel.kt`):
+### 4. O ViewModel — `AnotacaoViewModel.kt`
 
 ```kotlin
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.compose.runtime.*
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class AnotacaoViewModel(private val dao: AnotacaoDao) : ViewModel() {
+class AnotacaoViewModel(app: Application) : AndroidViewModel(app) {
 
-    // Converte o Flow do DAO em StateFlow para a UI observar
-    val anotacoes: StateFlow<List<Anotacao>> = dao.buscarTodas().stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList()
-    )
+    private val dao = Banco.pegar(app).anotacaoDao()
 
-    fun adicionar(titulo: String, conteudo: String) {
-        if (titulo.isBlank()) return
-        viewModelScope.launch {
-            dao.inserir(Anotacao(titulo = titulo.trim(), conteudo = conteudo.trim()))
-        }
+    var anotacoes by mutableStateOf(listOf<Anotacao>())
+        private set
+
+    init {
+        carregar()
     }
 
-    fun deletar(anotacao: Anotacao) {
-        viewModelScope.launch {
-            dao.deletar(anotacao)
-        }
+    private fun carregar() = viewModelScope.launch {
+        anotacoes = dao.listar()
     }
 
-    fun atualizar(id: Long, titulo: String, conteudo: String) {
-        viewModelScope.launch {
-            dao.atualizar(id, titulo.trim(), conteudo.trim())
-        }
+    fun adicionar(titulo: String, texto: String) = viewModelScope.launch {
+        if (titulo.isBlank()) return@launch      // título é obrigatório, texto não
+        dao.inserir(Anotacao(titulo = titulo, texto = texto))
+        carregar()
+    }
+
+    fun apagar(anotacao: Anotacao) = viewModelScope.launch {
+        dao.apagar(anotacao)
+        carregar()
     }
 }
 ```
 
-**5. Tela principal** (`AnotacoesScreen.kt`):
+### 5. A tela — `TelaAnotacoes.kt`
 
 ```kotlin
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun AnotacoesScreen(viewModel: AnotacaoViewModel) {
-    val anotacoes by viewModel.anotacoes.collectAsStateWithLifecycle()
-    var mostrarDialogo by remember { mutableStateOf(false) }
+fun TelaAnotacoes(vm: AnotacaoViewModel = viewModel()) {
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Minhas Anotações") })
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { mostrarDialogo = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Nova anotação")
-            }
+    var titulo by remember { mutableStateOf("") }
+    var texto by remember { mutableStateOf("") }
+
+    Column(Modifier.padding(16.dp)) {
+
+        Text("Minhas Anotações", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = titulo,
+            onValueChange = { titulo = it },
+            label = { Text("Título") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value = texto,
+            onValueChange = { texto = it },
+            label = { Text("Anotação") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Button(
+            onClick = {
+                vm.adicionar(titulo, texto)
+                titulo = ""
+                texto = ""
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Salvar")
         }
-    ) { padding ->
-        if (anotacoes.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Nenhuma anotação. Toque em + para adicionar! 📝")
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(anotacoes, key = { it.id }) { anotacao ->
-                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(anotacao.titulo, style = MaterialTheme.typography.titleMedium)
-                                if (anotacao.conteudo.isNotBlank()) {
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        anotacao.conteudo,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 3
-                                    )
-                                }
-                            }
-                            IconButton(onClick = { viewModel.deletar(anotacao) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Deletar")
-                            }
+
+        Spacer(Modifier.height(16.dp))
+
+        if (vm.anotacoes.isEmpty()) {
+            Text("Nenhuma anotação ainda. Escreva a primeira! 📝")
+        }
+
+        LazyColumn {
+            items(vm.anotacoes) { anotacao ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(anotacao.titulo, style = MaterialTheme.typography.titleMedium)
+                            Text(anotacao.texto, style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = { vm.apagar(anotacao) }) {
+                            Text("Apagar")
                         }
                     }
                 }
             }
         }
     }
-
-    if (mostrarDialogo) {
-        DialogoNovaAnotacao(
-            onConfirmar = { titulo, conteudo ->
-                viewModel.adicionar(titulo, conteudo)
-                mostrarDialogo = false
-            },
-            onDescartar = { mostrarDialogo = false }
-        )
-    }
-}
-
-@Composable
-fun DialogoNovaAnotacao(
-    onConfirmar: (titulo: String, conteudo: String) -> Unit,
-    onDescartar: () -> Unit
-) {
-    var titulo by remember { mutableStateOf("") }
-    var conteudo by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDescartar,
-        title = { Text("Nova Anotação") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = titulo,
-                    onValueChange = { titulo = it },
-                    label = { Text("Título *") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = conteudo,
-                    onValueChange = { conteudo = it },
-                    label = { Text("Conteúdo (opcional)") },
-                    minLines = 3,
-                    maxLines = 5,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirmar(titulo, conteudo) },
-                enabled = titulo.isNotBlank()
-            ) { Text("Salvar") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDescartar) { Text("Cancelar") }
-        }
-    )
 }
 ```
 
-**6. Conectando na MainActivity**:
-
-```kotlin
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        val db = AppDatabase.obter(this)
-        val viewModel = AnotacaoViewModel(db.anotacaoDao())
-
-        setContent {
-            MaterialTheme {
-                AnotacoesScreen(viewModel = viewModel)
-            }
-        }
-    }
-}
-```
-
-> **💡 Por trás dos panos**
-> Repare que `anotacoes` no ViewModel vem de `dao.buscarTodas().stateIn(...)` — o `Flow` retornado pelo DAO é **reativo**: toda vez que uma anotação é inserida, atualizada ou removida no banco, o Room emite automaticamente uma nova lista atualizada, e a tela redesenha sozinha. Você nunca precisa chamar manualmente "recarregar a lista" depois de salvar algo — é esse fluxo automático (`banco muda → Flow emite → StateFlow atualiza → UI recompõe`) que torna o Room tão prático de usar junto com Compose.
-
-### Exercícios
-
-1. **Editar anotações**: Adicione a funcionalidade de editar uma anotação existente.
-   - Primeiro, guarde a anotação selecionada para edição em um `remember { mutableStateOf<Anotacao?>(null) }`.
-   - Depois, ao clicar no card, preencha esse estado e abra o mesmo `AlertDialog`, mas com os campos já preenchidos com os dados atuais.
-   - Por fim, no botão de confirmação, chame `viewModel.atualizar(...)` em vez de `adicionar(...)`.
-   - *Dica se travar*: reaproveite o `DialogoNovaAnotacao` existente, adicionando parâmetros opcionais de `tituloInicial` e `conteudoInicial`.
-2. **Pesquisa**: Adicione um campo de busca na `TopAppBar`. Use a função `filter` sobre a lista de anotações para exibir apenas as que contêm o texto buscado no título ou no conteúdo.
-3. **Ordenação**: Adicione um menu no canto superior direito com opções de ordenação: "Mais recentes primeiro" e "Mais antigas primeiro". Modifique a query do DAO conforme a opção selecionada.
-   - *Dica se travar*: você pode criar duas funções no DAO (`buscarTodasRecentes()` e `buscarTodasAntigas()`, cada uma com `ORDER BY` diferente) e alternar entre elas no ViewModel.
+Na `MainActivity`, chame `TelaAnotacoes()` dentro do `setContent { MaterialTheme { ... } }`.
 
 ---
 
-## Prática 2: Favoritos com Room
+## Teste se funcionou
 
-### Objetivo
-Entender um caso de uso comum: salvar e remover favoritos localmente.
+- [ ] Salvei uma anotação com título e texto, e ela apareceu na lista
+- [ ] A anotação mais nova aparece **em cima**
+- [ ] Tentei salvar com o título vazio e nada foi salvo
+- [ ] Fechei o app de verdade, reabri, e as anotações continuam lá
+- [ ] Apaguei uma anotação e ela sumiu de vez
 
-"Favoritar" é um dos recursos mais pedidos em qualquer app com listas — filmes, produtos, artigos, receitas. Esta prática mostra um padrão bem específico e muito reutilizável: verificar se um item já existe no banco antes de decidir se ele deve ser inserido ou removido, alternando o estado com um único método (`alternarFavorito`).
+---
 
-### Passo a Passo
+## Exercícios
 
-**1. Entity**:
+### 1. Contador de anotações
+
+Mostre no topo da tela quantas anotações existem: *"Minhas Anotações (3)"*.
+
+> *Dica:* `vm.anotacoes.size` já te dá o número. Não precisa mexer no banco.
+
+### 2. Campo de busca
+
+Adicione um campo de busca que filtra a lista pelo título enquanto você digita.
+
+> *Dica:* crie `var busca by remember { mutableStateOf("") }` na tela e filtre **a lista que já está na memória**, sem mexer no DAO:
+> ```kotlin
+> val lista = vm.anotacoes.filter { it.titulo.contains(busca, ignoreCase = true) }
+> ```
+> Depois use `items(lista)` no lugar de `items(vm.anotacoes)`.
+
+### 3. Confirmar antes de apagar
+
+Hoje um toque em "Apagar" já apaga. Peça confirmação antes.
+
+> *Dica:* guarde qual anotação está esperando confirmação:
+> ```kotlin
+> var paraApagar by remember { mutableStateOf<Anotacao?>(null) }
+> ```
+> Quando `paraApagar` não for `null`, mostre um `AlertDialog` com os botões "Apagar" e "Cancelar".
+
+### 4. Editar uma anotação *(desafio)*
+
+Ao tocar em uma anotação, carregue o título e o texto dela nos campos de cima para editar.
+
+> *Dica:* o jeito mais simples é apagar a antiga e salvar a nova. Adicione no DAO:
+> ```kotlin
+> @Update
+> suspend fun atualizar(anotacao: Anotacao)
+> ```
+> e chame `dao.atualizar(anotacao.copy(titulo = novoTitulo, texto = novoTexto))` — o `copy` mantém o mesmo `id`, então o Room substitui a linha certa.
+
+---
+
+## Parte 2 — Favoritos *(desafio opcional)*
+
+Este é o padrão por trás do coraçãozinho de qualquer app: tocar uma vez favorita, tocar de novo desfavorita.
+
+A diferença aqui é a chave primária: **não** usamos `autoGenerate`. O `id` do próprio filme vira a chave, e isso garante sozinho que o mesmo filme não entre duas vezes.
 
 ```kotlin
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-
-@Entity(tableName = "favoritos")
-data class FilmeFavorito(
-    @PrimaryKey val id: Int,        // Usamos o ID do filme (sem autoGenerate)
-    val titulo: String,
-    val nota: Float,
-    val adicionadoEm: Long = System.currentTimeMillis()
+@Entity
+data class Favorito(
+    @PrimaryKey val id: Int,     // id do filme, NÃO gerado pelo Room
+    val titulo: String
 )
 ```
 
-**2. DAO**:
-
 ```kotlin
-import androidx.room.*
-import kotlinx.coroutines.flow.Flow
-
 @Dao
 interface FavoritoDao {
 
-    @Query("SELECT * FROM favoritos ORDER BY adicionadoEm DESC")
-    fun observarTodos(): Flow<List<FilmeFavorito>>
+    @Query("SELECT * FROM Favorito")
+    suspend fun listar(): List<Favorito>
 
-    @Query("SELECT COUNT(*) FROM favoritos WHERE id = :id")
-    suspend fun estaFavoritado(id: Int): Int  // Retorna 0 (não favorito) ou 1 (favorito)
+    @Query("SELECT COUNT(*) FROM Favorito WHERE id = :id")
+    suspend fun contar(id: Int): Int      // 0 = não é favorito, 1 = é
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun adicionar(favorito: FilmeFavorito)
+    @Insert
+    suspend fun adicionar(favorito: Favorito)
 
     @Delete
-    suspend fun remover(favorito: FilmeFavorito)
+    suspend fun remover(favorito: Favorito)
 }
 ```
 
-**3. ViewModel**:
+E no ViewModel, uma função só resolve os dois casos:
 
 ```kotlin
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
-
-class FavoritoViewModel(private val dao: FavoritoDao) : ViewModel() {
-
-    val favoritos: StateFlow<List<FilmeFavorito>> = dao.observarTodos().stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList()
-    )
-
-    fun alternarFavorito(filme: FilmeFavorito) {
-        viewModelScope.launch {
-            val jaFavoritado = dao.estaFavoritado(filme.id) > 0
-            if (jaFavoritado) {
-                dao.remover(filme)
-            } else {
-                dao.adicionar(filme)
-            }
-        }
+fun alternar(favorito: Favorito) = viewModelScope.launch {
+    if (dao.contar(favorito.id) > 0) {
+        dao.remover(favorito)
+    } else {
+        dao.adicionar(favorito)
     }
+    carregar()
 }
 ```
 
-> **💡 Por trás dos panos**
-> Note que a `@PrimaryKey` de `FilmeFavorito` não usa `autoGenerate = true` como em `Anotacao` — aqui o ID é o próprio ID do filme (vindo de outra fonte, como uma API). Isso é proposital: queremos que cada filme apareça no máximo uma vez na tabela de favoritos, e usar o mesmo ID do filme como chave primária garante isso automaticamente (o Room rejeita — ou substitui, dependendo do `OnConflictStrategy` — uma inserção com uma chave primária repetida).
-
-### Exercícios
-
-1. Adicione ao ViewModel uma função `estaFavoritado(id: Int): Flow<Boolean>` que emite `true` ou `false` conforme o estado no banco. Use-a em cada item da lista para mostrar um ícone de coração preenchido ou vazio.
-   - *Dica se travar*: crie no DAO uma query `@Query("SELECT COUNT(*) > 0 FROM favoritos WHERE id = :id") fun estaFavoritadoFlow(id: Int): Flow<Boolean>` — o Room converte o `COUNT(*) > 0` automaticamente em `Boolean`.
-2. Adicione uma tela "Meus Favoritos" que lista todos os filmes salvos, com a possibilidade de remover cada um.
-3. Adicione uma coluna `categoria: String` à entidade `FilmeFavorito`. Atualize a query do DAO para retornar favoritos filtrados por categoria.
+**Exercício:** monte uma tela com uma lista fixa de 5 filmes (escritos direto no código) e um botão ⭐/☆ em cada um, que chama `alternar`. O que estiver favoritado deve continuar favoritado depois de fechar o app.
 
 ---
 
-## Conceitos Chave
+## Erros comuns
 
-```
-Usuário age → ViewModel chama o DAO → DAO salva/lê no banco → Flow emite novo valor → UI atualiza automaticamente
-```
-
-| Anotação Room | Função |
-|---------------|--------|
-| `@Entity` | Define uma tabela no banco |
-| `@PrimaryKey` | Define a chave primária da tabela |
-| `@Dao` | Interface com operações do banco |
-| `@Insert` | Insere um ou mais registros |
-| `@Delete` | Remove um ou mais registros |
-| `@Query` | Executa SQL personalizado |
-| `@Database` | Configura o banco de dados |
+| Erro | Causa | Solução |
+|------|-------|---------|
+| `Cannot access database on the main thread` | Chamou o DAO fora de um `launch` | Coloque dentro de `viewModelScope.launch { }` |
+| A lista não muda depois de salvar | Faltou chamar `carregar()` | Chame `carregar()` no fim de `adicionar` e `apagar` |
+| `no such table: Anotacao` | Mudou a `@Entity` sem mudar a `version` | Desinstale o app do celular e instale de novo |
+| `UNIQUE constraint failed` | Inseriu duas vezes o mesmo `id` (na Parte 2) | Use `@Insert(onConflict = OnConflictStrategy.REPLACE)` ou confira antes com `contar` |
+| Erro de compilação em `@Dao` | Nome de coluna errado na `@Query` | O nome na query tem que ser igual ao da `data class`, letra por letra |
 
 ---
 
-## Próximos Passos
+## Resumo
 
-- Estude o módulo `03_persistencia_room.md` para ver o Room com API remota e sincronização.
-- Avance para `08_retrofit_api.md` para combinar dados remotos com persistência local.
-- Explore `@TypeConverters` quando precisar salvar tipos complexos (como listas ou datas) no Room.
+| Anotação | Para que serve |
+|----------|----------------|
+| `@Entity` | Vira uma tabela |
+| `@PrimaryKey` | O identificador único de cada linha |
+| `@Dao` | A lista de ações no banco |
+| `@Insert` / `@Delete` / `@Update` | Inserir, apagar, atualizar |
+| `@Query` | SQL escrito por você (`SELECT`, `ORDER BY`, `WHERE`) |
+| `@Database` | Junta tudo e cria o banco |
+
+O ciclo é sempre o mesmo:
+
+```
+usuário toca → ViewModel chama o DAO dentro de launch → carregar() de novo → mutableStateOf muda → tela redesenha
+```
+
+👉 Próxima prática: [Retrofit — buscando dados da internet](08_retrofit_api.md)
